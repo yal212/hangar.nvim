@@ -15,20 +15,7 @@ local STATUS = {
   orphaned = { icon = "?", hl = "HangarOrphaned" },
 }
 
-local function define_highlights()
-  local links = {
-    HangarRunning = "DiagnosticInfo",
-    HangarDone = "DiagnosticOk",
-    HangarFailed = "DiagnosticError",
-    HangarMerged = "Special",
-    HangarOrphaned = "DiagnosticWarn",
-    HangarDim = "Comment",
-    HangarHeader = "Title",
-  }
-  for group, link in pairs(links) do
-    vim.api.nvim_set_hl(0, group, { link = link, default = true })
-  end
-end
+local define_highlights = require("hangar.ui.hl").define
 
 ---Dashboard state for the single open instance.
 local state = {
@@ -291,7 +278,7 @@ function M.open()
   })
 
   -- 1s tick keeps elapsed times moving while any run is live; skips git calls
-  state.timer = vim.uv.new_timer()
+  state.timer = assert(vim.uv.new_timer())
   state.timer:start(1000, 1000, vim.schedule_wrap(function()
     if is_open() then
       M.render(false)
