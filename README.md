@@ -18,7 +18,7 @@ Power users already do this by hand: `tmux` panes, `git worktree add`, `claude -
 :Hangar          " dashboard: watch both, diff, merge the good one
 ```
 
-- **Parallel by default** — each run gets an isolated worktree + branch under `.hangar/`; your working tree is never touched.
+- **Parallel by default** — each run gets an isolated worktree + branch outside your repo; your working tree is never touched.
 - **Live mission control** — dashboard shows status, elapsed time, model, turn count, cost, and files changed for every run, updating in real time.
 - **Readable transcripts** — `<CR>` tails a run's stream as clean text and tool calls, not raw JSON.
 - **Native review** — `d` lists changed files; `<CR>` opens a real `diffsplit` against the run's base commit. `m` squash-merges the branch, `x` deletes worktree + branch.
@@ -104,7 +104,7 @@ Fuzzy-find runs by prompt, status, or id as an alternative to the dashboard — 
 
 ## How it works
 
-`:Hangar spawn` creates `.hangar/worktrees/<id>` on branch `hangar/<id>` (excluded from git status automatically), then runs `claude -p <prompt> --output-format stream-json` there via `vim.system`. Events stream into the run registry and every open UI updates through a `User HangarRunUpdate` autocmd. When a run finishes with uncommitted changes, hangar commits them so the branch is always mergeable. State persists to `stdpath("data")/hangar/runs.json`, so finished runs survive restarting Neovim.
+`:Hangar spawn` creates a worktree on branch `hangar/<id>` under `stdpath("cache")/hangar/worktrees/` — outside your repo, so agents can never touch your working tree — then runs `claude -p <prompt> --output-format stream-json` there via `vim.system`. Events stream into the run registry and every open UI updates through a `User HangarRunUpdate` autocmd. When a run finishes with uncommitted changes, hangar commits them so the branch is always mergeable. State persists to `stdpath("data")/hangar/runs.json`, so finished runs survive restarting Neovim.
 
 Adapters are a small contract (`name`, `build_cmd`, `parse_line`) — see `lua/hangar/adapters/`. Shipped adapters: **Claude Code** (`claude_code`, the default), **OpenAI Codex** (`codex`, via `codex exec --json`), **Gemini CLI** (`gemini`, via `gemini -p -o stream-json`), and **OpenCode** (`opencode`, via `opencode run --format json`).
 

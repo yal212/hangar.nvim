@@ -1,8 +1,11 @@
 ---Git worktree lifecycle + merge helpers. All git calls are synchronous
 ---`vim.system(...):wait()` with an explicit cwd; these commands are fast.
+---
+---Worktrees live under stdpath("cache"), OUTSIDE the repo: agent CLIs
+---(claude, opencode) resolve their workspace upward from cwd, and a
+---worktree nested inside the repo lets an agent using workspace-rooted
+---absolute paths write straight into the user's main tree.
 local M = {}
-
-local WORKTREE_DIR = ".hangar/worktrees"
 
 ---Run a git command, return { code, stdout, stderr }.
 ---@param cwd string
@@ -39,24 +42,12 @@ function M.root(dir)
   return res.stdout
 end
 
----Append .hangar/ to .git/info/exclude if not present (never touches .gitignore).
-local function ensure_excluded(root)
-  local git_dir = git_or_err(root, { "rev-parse", "--git-common-dir" })
-  if not git_dir:match("^/") then
-    git_dir = root .. "/" .. git_dir
-  end
-  local exclude = git_dir .. "/info/exclude"
-  local f = io.open(exclude, "r")
-  local content = f and f:read("*a") or ""
-  if f then
-    f:close()
-  end
-  if not content:find(".hangar/", 1, true) then
-    vim.fn.mkdir(vim.fn.fnamemodify(exclude, ":h"), "p")
-    local w = assert(io.open(exclude, "a"))
-    w:write((content ~= "" and not content:match("\n$")) and "\n" or "", ".hangar/\n")
-    w:close()
-  end
+---Directory that holds this repo's worktrees, unique per repo root.
+---@param root string
+---@return string
+function M.home(root)
+  local key = vim.fn.fnamemodify(root, ":t") .. "-" .. vim.fn.sha256(root):sub(1, 8)
+  return vim.fn.stdpath("cache") .. "/hangar/worktrees/" .. key
 end
 
 ---Create a worktree + branch for a run. Returns { path, branch, base }.
@@ -67,11 +58,11 @@ function M.create(root, run_id)
   if head.code ~= 0 then
     error("repository has no commits yet; hangar needs a base commit to branch from", 0)
   end
-  ensure_excluded(root)
-  local rel = WORKTREE_DIR .. "/" .. run_id
+  local path = M.home(root) .. "/" .. run_id
+  vim.fn.mkdir(vim.fn.fnamemodify(path, ":h"), "p")
   local branch = "hangar/" .. run_id
-  git_or_err(root, { "worktree", "add", rel, "-b", branch })
-  return { path = root .. "/" .. rel, branch = branch, base = head.stdout }
+  git_or_err(root, { "worktree", "add", path, "-b", branch })
+  return { path = path, branch = branch, base = head.stdout }
 end
 
 ---Remove a run's worktree and branch (best-effort, forced).

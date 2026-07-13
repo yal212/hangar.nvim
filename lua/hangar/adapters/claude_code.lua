@@ -24,6 +24,9 @@ function M.build_cmd(opts)
     "--no-session-persistence",
     "--permission-mode",
     opts.permission_mode,
+    -- steer models that reach for workspace-rooted absolute paths
+    "--append-system-prompt",
+    "You are working in an isolated git worktree. Create and modify files only inside the current working directory.",
   }
   if opts.model then
     vim.list_extend(cmd, { "--model", opts.model })

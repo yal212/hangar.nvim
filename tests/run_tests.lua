@@ -301,6 +301,10 @@ local function run_e2e(adapter_name)
     check(type(run.turns) == "number" and run.turns >= 1, t .. "turn count parsed")
   end
 
+  -- regression: the agent must never write into the main tree (worktree escape)
+  local root_status = sh(repo, { "git", "status", "--porcelain" })
+  check(root_status == "", t .. "main repo working tree untouched by the run")
+
   local worktree = require("hangar.worktree")
   local files = worktree.changed_files(run)
   local touched = vim.tbl_map(function(x) return x.path end, files)
