@@ -2,14 +2,7 @@
 ---The core plugin never requires the host picker plugins; the wrappers do.
 local M = {}
 
-local ICONS = {
-  running = "●",
-  done = "✓",
-  failed = "✗",
-  killed = "⊘",
-  merged = "⇡",
-  orphaned = "?",
-}
+local icons = require("hangar.ui.icons")
 
 ---Runs for the current repo, newest first, each with a one-line display.
 ---@return { run: hangar.Run, display: string }[]|nil entries
@@ -32,7 +25,7 @@ function M.entries()
     entries[#entries + 1] = {
       run = run,
       display = ("%s %-9s %-8s %s%s"):format(
-        ICONS[run.status] or " ",
+        icons.get(run.status).icon,
         run.id,
         run.status,
         prompt:sub(1, 60) .. (#prompt > 60 and "…" or ""),

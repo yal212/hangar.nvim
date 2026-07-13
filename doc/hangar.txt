@@ -94,6 +94,7 @@ files, prompt. Updates live. Keys:
         -- codex = { cmd = "/path/to/codex", model = "gpt-5.3-codex" },
       },
       notify = true,             -- notify on run completion (see below)
+      max_concurrent = nil,      -- cap on running agents (see below)
     })
 <
 `claude_cmd` is a deprecated alias for `adapters.claude_code.cmd`.
@@ -106,6 +107,14 @@ notify ~
     (the function replaces vim.notify entirely). Notifications are
     always suppressed while the dashboard is open — it already shows the
     change live.
+
+max_concurrent ~
+    Caps how many agent processes run at once (counted across all
+    repos). Spawns past the cap park with status "queued" (icon ◌, no
+    worktree yet) and start oldest-first as running runs finish or are
+    killed. Killing a queued run drops it from the queue. Queued runs
+    that survive an nvim restart are marked killed, never auto-started.
+    nil (the default) means unlimited.
 
 ==============================================================================
 6. LUA API                                                        *hangar-api*
@@ -123,7 +132,7 @@ status()                                                     *hangar.status()*
     ✗ failed), or "" when idle. Cached; safe to call on every redraw.
 
 status_counts()                                       *hangar.status_counts()*
-    Raw `{ running, done, failed }` counts for custom formatting.
+    Raw `{ running, queued, done, failed }` counts for custom formatting.
 
                                                           *hangar-autocmd*
 Every run change fires `User HangarRunUpdate` with `data = { id }` — UIs

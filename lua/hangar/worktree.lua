@@ -65,11 +65,16 @@ function M.create(root, run_id)
   return { path = path, branch = branch, base = head.stdout }
 end
 
----Remove a run's worktree and branch (best-effort, forced).
----@param run { root: string, worktree: string, branch: string }
+---Remove a run's worktree and branch (best-effort, forced). Queued runs
+---have neither yet.
+---@param run { root: string, worktree: string|nil, branch: string|nil }
 function M.remove(run)
-  git(run.root, { "worktree", "remove", "--force", run.worktree })
-  git(run.root, { "branch", "-D", run.branch })
+  if run.worktree then
+    git(run.root, { "worktree", "remove", "--force", run.worktree })
+  end
+  if run.branch then
+    git(run.root, { "branch", "-D", run.branch })
+  end
   git(run.root, { "worktree", "prune" })
 end
 
@@ -98,6 +103,9 @@ function M.changed_files(run)
       seen[path] = true
       files[#files + 1] = { status = status, path = path }
     end
+  end
+  if not run.worktree then
+    return files -- queued run: nothing on disk yet
   end
   if vim.uv.fs_stat(run.worktree) then
     local res = git(run.worktree, { "diff", "--name-status", run.base })

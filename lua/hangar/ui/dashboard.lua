@@ -6,14 +6,7 @@ local M = {}
 
 local ns = vim.api.nvim_create_namespace("hangar_dashboard")
 
-local STATUS = {
-  running = { icon = "●", hl = "HangarRunning" },
-  done = { icon = "✓", hl = "HangarDone" },
-  failed = { icon = "✗", hl = "HangarFailed" },
-  killed = { icon = "⊘", hl = "HangarFailed" },
-  merged = { icon = "⇡", hl = "HangarMerged" },
-  orphaned = { icon = "?", hl = "HangarOrphaned" },
-}
+local icons = require("hangar.ui.icons")
 
 local define_highlights = require("hangar.ui.hl").define
 
@@ -87,7 +80,7 @@ function M.render(refresh_files)
   end
 
   local function add_row(run, prompt_text)
-    local st = STATUS[run.status] or { icon = " ", hl = "HangarDim" }
+    local st = icons.get(run.status)
     local row = ("  %s %-9s %-7s %-10s %5s %8s %5s  %s"):format(
       st.icon,
       run.id,

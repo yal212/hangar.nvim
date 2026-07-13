@@ -75,6 +75,8 @@ require("hangar").setup({
   },
   notify = true,             -- notify when a run finishes and the dashboard is closed
                              -- (true | false | function(run) for a custom sink)
+  max_concurrent = nil,      -- cap on simultaneously running agents; extra spawns
+                             -- queue (◌) and start as slots free up. nil = unlimited
 })
 ```
 
@@ -102,7 +104,7 @@ require("lualine").setup({
 })
 ```
 
-`require("hangar").status_counts()` returns the raw `{ running, done, failed }` table for custom formatting.
+`require("hangar").status_counts()` returns the raw `{ running, queued, done, failed }` table for custom formatting.
 
 ### Pickers (optional)
 

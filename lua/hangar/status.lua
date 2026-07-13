@@ -34,14 +34,14 @@ local function current_root()
 end
 
 ---Run counts for the current repo, or nil outside a git repo.
----@return { running: integer, done: integer, failed: integer }|nil
+---@return { running: integer, queued: integer, done: integer, failed: integer }|nil
 function M.counts()
   subscribe()
   local root = current_root()
   if not root then
     return nil
   end
-  local counts = { running = 0, done = 0, failed = 0 }
+  local counts = { running = 0, queued = 0, done = 0, failed = 0 }
   for _, run in ipairs(require("hangar.runner").list(root)) do
     if counts[run.status] then
       counts[run.status] = counts[run.status] + 1
@@ -62,16 +62,13 @@ function M.text()
   if cached ~= nil then
     return cached
   end
-  local c = M.counts() or { running = 0, done = 0, failed = 0 }
+  local c = M.counts() or { running = 0, queued = 0, done = 0, failed = 0 }
+  local icons = require("hangar.ui.icons").STATUS
   local parts = {}
-  if c.running > 0 then
-    parts[#parts + 1] = c.running .. " ●"
-  end
-  if c.done > 0 then
-    parts[#parts + 1] = c.done .. " ✓"
-  end
-  if c.failed > 0 then
-    parts[#parts + 1] = c.failed .. " ✗"
+  for _, status in ipairs({ "running", "queued", "done", "failed" }) do
+    if c[status] > 0 then
+      parts[#parts + 1] = c[status] .. " " .. icons[status].icon
+    end
   end
   local text = #parts > 0 and ("hangar " .. table.concat(parts, " ")) or ""
   text_cache[root] = text

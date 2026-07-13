@@ -15,6 +15,9 @@ M.config = {
   ---Notify when a run finishes (done/failed) and the dashboard is closed.
   ---true: vim.notify; false: silent; function: called with the run instead.
   notify = true, ---@type boolean|fun(run: hangar.Run)
+  ---Max simultaneously running agent processes (across all repos); extra
+  ---spawns park as "queued" and start as slots free up. nil = unlimited.
+  max_concurrent = nil, ---@type integer|nil
 }
 
 ---@param opts hangar.Config|nil

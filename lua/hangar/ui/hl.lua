@@ -3,6 +3,7 @@ local M = {}
 
 function M.define()
   local links = {
+    HangarQueued = "Comment",
     HangarRunning = "DiagnosticInfo",
     HangarDone = "DiagnosticOk",
     HangarFailed = "DiagnosticError",
