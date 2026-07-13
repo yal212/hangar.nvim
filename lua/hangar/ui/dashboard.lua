@@ -28,7 +28,13 @@ local state = {
 }
 
 local function is_open()
-  return state.win and vim.api.nvim_win_is_valid(state.win)
+  return state.win ~= nil and vim.api.nvim_win_is_valid(state.win)
+end
+
+---Whether the dashboard float is currently visible (used by the runner to
+---suppress completion notifications the dashboard already shows live).
+function M.is_open()
+  return is_open()
 end
 
 local function fmt_elapsed(run)

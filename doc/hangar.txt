@@ -93,9 +93,19 @@ files, prompt. Updates live. Keys:
       adapters = {               -- per-adapter overrides (all optional)
         -- codex = { cmd = "/path/to/codex", model = "gpt-5.3-codex" },
       },
+      notify = true,             -- notify on run completion (see below)
     })
 <
 `claude_cmd` is a deprecated alias for `adapters.claude_code.cmd`.
+
+notify ~
+    When a run finishes as done or failed while the dashboard is closed,
+    hangar calls |vim.notify()| with the run id, elapsed time, cost (when
+    the adapter reports one), and the error for failures. Set to `false`
+    to silence, or to a `function(run)` to route runs to a custom sink
+    (the function replaces vim.notify entirely). Notifications are
+    always suppressed while the dashboard is open — it already shows the
+    change live.
 
 ==============================================================================
 6. LUA API                                                        *hangar-api*

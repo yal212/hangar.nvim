@@ -12,6 +12,9 @@ M.config = {
   adapter = "claude_code", ---@type string  default adapter for spawns without --adapter
   ---Per-adapter overrides: `adapters = { codex = { cmd = "...", model = "..." } }`
   adapters = {}, ---@type table<string, { cmd?: string, model?: string }>
+  ---Notify when a run finishes (done/failed) and the dashboard is closed.
+  ---true: vim.notify; false: silent; function: called with the run instead.
+  notify = true, ---@type boolean|fun(run: hangar.Run)
 }
 
 ---@param opts hangar.Config|nil

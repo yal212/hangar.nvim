@@ -155,6 +155,32 @@ end
 
 M._apply_event = apply_event -- exposed for tests
 
+---Notify on a finished run, unless configured off or the dashboard already
+---shows the change live.
+local function notify_finish(run)
+  local sink = require("hangar").config.notify
+  if sink == false or (run.status ~= "done" and run.status ~= "failed") then
+    return
+  end
+  local dashboard = package.loaded["hangar.ui.dashboard"]
+  if dashboard and dashboard.is_open() then
+    return
+  end
+  if type(sink) == "function" then
+    sink(run)
+    return
+  end
+  local secs = math.max(0, (run.finished or 0) - (run.started or 0))
+  local msg = ("[hangar] %s %s in %02d:%02d"):format(run.id, run.status, math.floor(secs / 60), secs % 60)
+  if run.cost then
+    msg = msg .. (" ($%.2f)"):format(run.cost)
+  end
+  if run.status == "failed" and run.error then
+    msg = msg .. ": " .. run.error:sub(1, 120)
+  end
+  vim.notify(msg, run.status == "done" and vim.log.levels.INFO or vim.log.levels.ERROR)
+end
+
 local function finish(run, code)
   run.exit_code = code
   run.finished = os.time()
@@ -177,7 +203,10 @@ local function finish(run, code)
   jobs[run.id] = nil
   M.save()
   notify_update(run.id)
+  notify_finish(run)
 end
+
+M._finish = finish -- exposed for tests
 
 ---@class hangar.SpawnOpts
 ---@field permission_mode "acceptEdits"|"bypassPermissions"

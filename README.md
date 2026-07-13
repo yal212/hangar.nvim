@@ -73,6 +73,8 @@ require("hangar").setup({
   adapters = {               -- per-adapter overrides (all optional)
     -- codex = { cmd = "/path/to/codex", model = "gpt-5.3-codex" },
   },
+  notify = true,             -- notify when a run finishes and the dashboard is closed
+                             -- (true | false | function(run) for a custom sink)
 })
 ```
 
