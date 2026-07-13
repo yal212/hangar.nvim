@@ -19,6 +19,16 @@ function M.setup(opts)
   M.config = vim.tbl_deep_extend("force", M.config, opts or {})
 end
 
+---Statusline component: "hangar 2● 1✓" (running / awaiting review), "" when idle.
+---Cached; safe to call on every redraw. `status_counts()` returns the raw table.
+function M.status()
+  return require("hangar.status").text()
+end
+
+function M.status_counts()
+  return require("hangar.status").counts()
+end
+
 local PERMISSION_MODES = { yolo = "bypassPermissions", safe = "acceptEdits" }
 
 ---Parse `:Hangar spawn` args: flags (--yolo/--safe/--model m/--adapter a) then prompt.

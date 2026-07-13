@@ -73,6 +73,20 @@ require("hangar").setup({
 
 Lua API: `require("hangar").spawn(prompt, { permission_mode = "bypassPermissions", model = "haiku", adapter = "codex" })`.
 
+### Statusline
+
+`require("hangar").status()` returns `"hangar 2● 1✓"` (running / awaiting review / `✗` failed), or `""` when idle — cached, so it's safe on every redraw. lualine:
+
+```lua
+require("lualine").setup({
+  sections = {
+    lualine_x = { function() return require("hangar").status() end, "encoding", "filetype" },
+  },
+})
+```
+
+`require("hangar").status_counts()` returns the raw `{ running, done, failed }` table for custom formatting.
+
 ## How it works
 
 `:Hangar spawn` creates `.hangar/worktrees/<id>` on branch `hangar/<id>` (excluded from git status automatically), then runs `claude -p <prompt> --output-format stream-json` there via `vim.system`. Events stream into the run registry and every open UI updates through a `User HangarRunUpdate` autocmd. When a run finishes with uncommitted changes, hangar commits them so the branch is always mergeable. State persists to `stdpath("data")/hangar/runs.json`, so finished runs survive restarting Neovim.
