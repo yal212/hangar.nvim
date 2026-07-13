@@ -2,7 +2,7 @@
 
 **Run a fleet of coding agents in parallel git worktrees. Review and merge from a dashboard.**
 
-Spawn multiple headless [Claude Code](https://claude.com/claude-code) runs on different tasks — each in its own git worktree and branch — watch them work live, diff the results, merge the winners, discard the rest. Never leave Neovim.
+Spawn headless agent runs — [Claude Code](https://claude.com/claude-code) (default), OpenAI Codex, Gemini CLI, or OpenCode — on different tasks, each in its own git worktree and branch. Watch them work live, diff the results, merge the winners, discard the rest. Never leave Neovim.
 
 *Think: lazygit for coding agents.*
 
@@ -22,7 +22,7 @@ Power users already do this by hand: `tmux` panes, `git worktree add`, `claude -
 - **Live mission control** — dashboard shows status, elapsed time, model, turn count, cost, and files changed for every run, updating in real time.
 - **Readable transcripts** — `<CR>` tails a run's stream as clean text and tool calls, not raw JSON.
 - **Native review** — `d` lists changed files; `<CR>` opens a real `diffsplit` against the run's base commit. `m` squash-merges the branch, `x` deletes worktree + branch.
-- **Zero dependencies** — pure Lua, no plenary, Neovim ≥ 0.10. Requires `git` and the `claude` CLI.
+- **Zero dependencies** — pure Lua, no plenary, Neovim ≥ 0.10. Requires `git` and at least one agent CLI (`claude` by default).
 
 ## Install
 
@@ -42,7 +42,7 @@ lazy.nvim:
 |---|---|
 | `:Hangar` | open the dashboard |
 | `:Hangar spawn --yolo <prompt>` | spawn an agent with full tool access (runs sandboxed in its worktree) |
-| `:Hangar spawn --safe <prompt>` | spawn an agent that can edit files but not run shell commands |
+| `:Hangar spawn --safe <prompt>` | spawn an agent with reduced permissions (exact mapping is per adapter, see below) |
 | `:Hangar spawn --model haiku <prompt>` | pick a model per run |
 | `:Hangar spawn --adapter codex <prompt>` | pick an agent CLI per run (`claude_code`, `codex`, `gemini`, `opencode`) |
 | `:Hangar spawn --n 3 --yolo <prompt>` | best-of-3: three attempts of the same prompt in parallel worktrees |
@@ -83,7 +83,17 @@ Lua API: `require("hangar").spawn(prompt, { permission_mode = "bypassPermissions
 ```lua
 require("lualine").setup({
   sections = {
-    lualine_x = { function() return require("hangar").status() end, "encoding", "filetype" },
+    lualine_x = {
+      function()
+        -- guard keeps lazy.nvim from loading hangar just to render ""
+        if not package.loaded["hangar"] then
+          return ""
+        end
+        return require("hangar").status()
+      end,
+      "encoding",
+      "filetype",
+    },
   },
 })
 ```
@@ -108,6 +118,8 @@ Fuzzy-find runs by prompt, status, or id as an alternative to the dashboard — 
 
 Adapters are a small contract (`name`, `build_cmd`, `parse_line`) — see `lua/hangar/adapters/`. Shipped adapters: **Claude Code** (`claude_code`, the default), **OpenAI Codex** (`codex`, via `codex exec --json`), **Gemini CLI** (`gemini`, via `gemini -p -o stream-json`), and **OpenCode** (`opencode`, via `opencode run --format json`).
 
+`--yolo` / `--safe` map onto each CLI's own permission system: claude `bypassPermissions` / `acceptEdits`, codex `--dangerously-bypass-approvals-and-sandbox` / `--sandbox workspace-write` (sandboxed shell allowed), gemini `--approval-mode yolo` / `auto_edit`, opencode `--auto` / default.
+
 ## Tests
 
 ```sh
@@ -118,6 +130,12 @@ nvim --headless -l tests/run_tests.lua
 XDG_DATA_HOME=$(mktemp -d) nvim --headless -l tests/run_tests.lua --integration
 XDG_DATA_HOME=$(mktemp -d) nvim --headless -l tests/run_tests.lua --integration codex
 ```
+
+`--integration gemini` additionally needs working Gemini CLI auth.
+
+## Contributing
+
+New adapters are the most useful contribution: implement the three-field contract in `lua/hangar/adapters/` (capture real CLI output first and write the parser against it), add canned-line tests to `tests/run_tests.lua`, and verify a real run end-to-end with `--integration <name>`. The offline suite must pass for any change.
 
 ## License
 

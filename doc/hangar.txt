@@ -1,0 +1,179 @@
+*hangar.txt*    Run a fleet of coding agents in parallel git worktrees.
+
+Author:  yal212
+License: MIT
+
+==============================================================================
+CONTENTS                                                              *hangar*
+
+  1. Introduction ......................................... |hangar-intro|
+  2. Requirements .................................. |hangar-requirements|
+  3. Commands ........................................... |hangar-commands|
+  4. Dashboard ......................................... |hangar-dashboard|
+  5. Configuration ......................................... |hangar-config|
+  6. Lua API .................................................. |hangar-api|
+  7. Adapters ............................................ |hangar-adapters|
+  8. Statusline ........................................ |hangar-statusline|
+  9. Pickers ............................................. |hangar-pickers|
+ 10. How it works ...................................... |hangar-internals|
+
+==============================================================================
+1. INTRODUCTION                                                 *hangar-intro*
+
+hangar.nvim spawns headless coding-agent runs — Claude Code (default),
+OpenAI Codex, Gemini CLI, or OpenCode — each in its own git worktree and
+branch. A live dashboard shows status, cost, and changed files; review a
+run's diff, merge the winners, discard the rest, without leaving Neovim.
+
+==============================================================================
+2. REQUIREMENTS                                          *hangar-requirements*
+
+- Neovim >= 0.10
+- git >= 2.5 (worktree support)
+- At least one agent CLI on $PATH (`claude` by default)
+- A git repository with at least one commit (runs branch off HEAD)
+
+Run `:checkhealth hangar` to diagnose setup problems.
+
+==============================================================================
+3. COMMANDS                                                  *hangar-commands*
+
+:Hangar                                                              *:Hangar*
+    Open the dashboard (|hangar-dashboard|).
+
+:Hangar spawn [flags] {prompt}                                 *:Hangar-spawn*
+    Spawn an agent run in a fresh worktree. Flags come before the prompt:
+
+      --yolo            full tool access (see |hangar-adapters| for the
+                        per-adapter mapping)
+      --safe            reduced permissions (per-adapter mapping)
+      --model {m}       model for this run, e.g. `haiku`
+      --adapter {a}     agent CLI: `claude_code`, `codex`, `gemini`,
+                        `opencode`
+      --n {count}       best-of-N: spawn {count} attempts (1-8) of the same
+                        prompt in parallel worktrees; the dashboard groups
+                        them, and merging one offers to discard the rest
+
+    Every spawn needs `--yolo` or `--safe` unless `default_permission` is
+    set (|hangar-config|) — headless agents can't answer permission prompts.
+
+:Hangar kill {id}                                               *:Hangar-kill*
+    Stop a running agent (SIGTERM).
+
+:Hangar clean                                                  *:Hangar-clean*
+    Delete worktrees and branches of all non-running runs and forget them.
+
+==============================================================================
+4. DASHBOARD                                                *hangar-dashboard*
+
+One row per run: status icon, id, elapsed, model, turns, cost, changed
+files, prompt. Updates live. Keys:
+
+  <CR>    open the run's transcript (streaming tail)
+  d       review: changed files list; <CR> on a file opens a |diffsplit|
+          against the run's base commit
+  m       merge the run's branch into your current branch (confirm first);
+          for a best-of-N attempt, offers to discard the sibling attempts
+  x       discard: delete worktree + branch, forget the run (confirm first)
+  K       kill a running agent
+  s       spawn a new run (prompts for input)
+  r       refresh the files column
+  q/<Esc> close
+
+==============================================================================
+5. CONFIGURATION                                               *hangar-config*
+
+>lua
+    require("hangar").setup({
+      default_permission = nil,  -- "yolo"|"safe"|nil (nil: explicit flag
+                                 -- required per spawn)
+      merge = "squash",          -- "squash"|"ff"|"merge"
+      adapter = "claude_code",   -- default agent CLI
+      model = nil,               -- default model for claude_code spawns
+      adapters = {               -- per-adapter overrides (all optional)
+        -- codex = { cmd = "/path/to/codex", model = "gpt-5.3-codex" },
+      },
+    })
+<
+`claude_cmd` is a deprecated alias for `adapters.claude_code.cmd`.
+
+==============================================================================
+6. LUA API                                                        *hangar-api*
+
+setup({opts})                                                 *hangar.setup()*
+    Apply configuration (|hangar-config|). Optional; defaults work.
+
+spawn({prompt}, {opts})                                       *hangar.spawn()*
+    Spawn a run. {opts}: `permission_mode` ("bypassPermissions" or
+    "acceptEdits"), `model`, `adapter`, `n`. Returns the run, or a list of
+    runs when `n` > 1.
+
+status()                                                     *hangar.status()*
+    Statusline string like "hangar 2 ● 1 ✓" (running / awaiting review /
+    ✗ failed), or "" when idle. Cached; safe to call on every redraw.
+
+status_counts()                                       *hangar.status_counts()*
+    Raw `{ running, done, failed }` counts for custom formatting.
+
+                                                          *hangar-autocmd*
+Every run change fires `User HangarRunUpdate` with `data = { id }` — UIs
+and statuslines subscribe to it.
+
+==============================================================================
+7. ADAPTERS                                                  *hangar-adapters*
+
+An adapter is a module in `lua/hangar/adapters/` with three fields:
+`name` (string), `build_cmd(opts) -> argv`, and `parse_line(line) ->
+event|nil` normalizing output into `init`/`text`/`tool_use`/`tool_result`/
+`result` events. Unknown event types must be ignored.
+
+Shipped adapters and their permission mappings:
+
+  adapter      --yolo                        --safe
+  -----------  ----------------------------  ---------------------------
+  claude_code  --permission-mode             --permission-mode
+               bypassPermissions             acceptEdits
+  codex        --dangerously-bypass-         --sandbox workspace-write
+               approvals-and-sandbox
+  gemini       --approval-mode yolo          --approval-mode auto_edit
+  opencode     --auto                        (default permissions)
+
+==============================================================================
+8. STATUSLINE                                              *hangar-statusline*
+
+lualine example (the `package.loaded` guard avoids eager-loading the
+plugin just to render an empty string):
+>lua
+    lualine_x = {
+      function()
+        if not package.loaded["hangar"] then return "" end
+        return require("hangar").status()
+      end,
+    }
+<
+==============================================================================
+9. PICKERS                                                    *hangar-pickers*
+
+Optional fuzzy pickers over the run registry; the core stays
+dependency-free. Actions: <CR> transcript, <C-d> review, <C-x> discard.
+
+telescope.nvim: >vim
+    :lua require("telescope").load_extension("hangar")
+    :Telescope hangar runs
+<
+fzf-lua: >vim
+    :lua require("hangar.pickers.fzf").runs()
+<
+==============================================================================
+10. HOW IT WORKS                                            *hangar-internals*
+
+`:Hangar spawn` creates a worktree on branch `hangar/<id>` under
+`stdpath("cache")/hangar/worktrees/` — outside your repo, so agents can
+never touch your working tree — and runs the agent CLI there headlessly
+via |vim.system()|. Output streams into the run registry; UIs update via
+the |hangar-autocmd|. A run that finishes with uncommitted changes is
+auto-committed so its branch is always mergeable. State persists to
+`stdpath("data")/hangar/runs.json`; runs that were live when Neovim
+exited come back as "orphaned" (still reviewable and mergeable).
+
+vim:tw=78:ts=8:noet:ft=help:norl:
