@@ -134,8 +134,18 @@ local function apply_event(run, ev)
       run.error = ev.text
     end
   end
+  if ev.kind == "text" and ev.delta then
+    -- streaming adapters (gemini) emit text in small deltas; coalesce
+    local last = run.events[#run.events]
+    if last and last.kind == "text" and last.delta then
+      last.text = last.text .. ev.text
+      return
+    end
+  end
   run.events[#run.events + 1] = ev
 end
+
+M._apply_event = apply_event -- exposed for tests
 
 local function finish(run, code)
   run.exit_code = code
