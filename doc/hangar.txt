@@ -66,8 +66,9 @@ Run `:checkhealth hangar` to diagnose setup problems.
 ==============================================================================
 4. DASHBOARD                                                *hangar-dashboard*
 
-One row per run: status icon, id, elapsed, model, turns, cost, changed
-files, prompt. Updates live. Keys:
+One row per run: status icon, id, adapter, elapsed, model, turns, cost,
+changed files, prompt. A footer totals running/queued counts and cost
+across the repo's runs. Updates live. Keys:
 
   <CR>    open the run's transcript (streaming tail)
   d       review: changed files list; <CR> on a file opens a |diffsplit|
@@ -90,6 +91,9 @@ files, prompt. Updates live. Keys:
   R       resume an orphaned run's agent session in its original worktree
           (adapter support required, see |hangar-adapters|)
   s       spawn a new run (prompts for input)
+  o       cycle sort order: recent (default) -> status -> cost. Groups
+          sort by their newest member and stay together
+  f       toggle hiding merged runs
   r       refresh the files column
   q/<Esc> close
 

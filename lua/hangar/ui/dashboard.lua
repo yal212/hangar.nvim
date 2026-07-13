@@ -18,7 +18,16 @@ local state = {
   timer = nil,
   line_runs = {}, -- 1-indexed buffer line -> run id
   files_cache = {}, -- run id -> file count (refreshed on run updates, not ticks)
+  sort = "recent", -- "recent"|"status"|"cost"
+  hide_merged = false,
 }
+
+---Short adapter name for the dashboard column.
+local ADAPTER_NAMES = { claude_code = "claude" }
+
+---Sort rank for the "status" ordering: live work first, merged last.
+local STATUS_RANK =
+  { running = 1, detached = 2, queued = 3, done = 4, failed = 5, orphaned = 6, killed = 7, merged = 8 }
 
 local function is_open()
   return state.win ~= nil and vim.api.nvim_win_is_valid(state.win)
@@ -56,14 +65,18 @@ function M.render(refresh_files)
   if not is_open() then
     return
   end
-  local runs = runner.list(state.root)
+  local all_runs = runner.list(state.root)
+  local runs = state.hide_merged and vim.tbl_filter(function(r)
+    return r.status ~= "merged"
+  end, all_runs) or all_runs
   local lines, marks = {}, {}
   state.line_runs = {}
 
   lines[1] = ""
-  lines[2] = ("  %-1s %-9s %-7s %-10s %5s %8s %5s  %s"):format(
+  lines[2] = ("  %-1s %-9s %-8s %-7s %-10s %5s %8s %5s  %s"):format(
     " ",
     "run",
+    "adapter",
     "time",
     "model",
     "turns",
@@ -81,9 +94,10 @@ function M.render(refresh_files)
 
   local function add_row(run, prompt_text)
     local st = icons.get(run.status)
-    local row = ("  %s %-9s %-7s %-10s %5s %8s %5s  %s"):format(
+    local row = ("  %s %-9s %-8s %-7s %-10s %5s %8s %5s  %s"):format(
       st.icon,
       run.id,
+      ADAPTER_NAMES[run.adapter] or run.adapter or "-",
       fmt_elapsed(run),
       short_model(run.model),
       run.turns or "-",
@@ -101,30 +115,97 @@ function M.render(refresh_files)
     return prompt:sub(1, max) .. (#prompt > max and "…" or "")
   end
 
-  -- best-of-n attempts render under one shared prompt header
-  local rendered_groups = {}
+  -- display units: single runs, or one unit per best-of-n / iteration group
+  -- (groups always render as a block, whatever the sort order)
+  local units, by_group = {}, {}
   for _, run in ipairs(runs) do
     if not run.group then
-      add_row(run, clip(run.prompt, 50))
-    elseif not rendered_groups[run.group] then
-      rendered_groups[run.group] = true
-      local members = vim.tbl_filter(function(r)
-        return r.group == run.group
-      end, runs)
-      table.sort(members, function(a, b)
+      units[#units + 1] = { runs = { run } }
+    elseif by_group[run.group] then
+      table.insert(by_group[run.group].runs, run)
+    else
+      local unit = { runs = { run }, group = run.group }
+      by_group[run.group] = unit
+      units[#units + 1] = unit
+    end
+  end
+
+  local function unit_key(unit)
+    local newest, rank, cost = 0, 99, nil
+    for _, r in ipairs(unit.runs) do
+      newest = math.max(newest, r.started or 0)
+      rank = math.min(rank, STATUS_RANK[r.status] or 9)
+      if r.cost then
+        cost = (cost or 0) + r.cost
+      end
+    end
+    return newest, rank, cost
+  end
+  if state.sort ~= "recent" then -- units arrive newest-first already
+    table.sort(units, function(a, b)
+      local an, ar, ac = unit_key(a)
+      local bn, br, bc = unit_key(b)
+      if state.sort == "status" and ar ~= br then
+        return ar < br
+      end
+      if state.sort == "cost" and (ac or -1) ~= (bc or -1) then
+        return (ac or -1) > (bc or -1)
+      end
+      return an > bn
+    end)
+  end
+
+  for _, unit in ipairs(units) do
+    if not unit.group then
+      add_row(unit.runs[1], clip(unit.runs[1].prompt, 42))
+    else
+      table.sort(unit.runs, function(a, b)
         return (a.attempt or 0) < (b.attempt or 0)
       end)
-      local header = ("  %d× %s"):format(#members, clip(run.prompt, 70))
+      local header = ("  %d× %s"):format(#unit.runs, clip(unit.runs[1].prompt, 70))
       lines[#lines + 1] = header
       marks[#marks + 1] = { line = #lines - 1, col = 0, end_col = #header, hl = "HangarDim" }
-      for _, member in ipairs(members) do
+      for _, member in ipairs(unit.runs) do
         add_row(member, ("↳ attempt %d"):format(member.attempt or 0))
       end
     end
   end
 
+  -- totals footer (always over the full run list, filter or not)
+  local totals = { running = 0, queued = 0, cost = nil }
+  for _, run in ipairs(all_runs) do
+    if run.status == "running" then
+      totals.running = totals.running + 1
+    elseif run.status == "queued" then
+      totals.queued = totals.queued + 1
+    end
+    if run.cost then
+      totals.cost = (totals.cost or 0) + run.cost
+    end
+  end
+  if #all_runs > 0 then
+    local fparts = { totals.running .. " running" }
+    if totals.queued > 0 then
+      fparts[#fparts + 1] = totals.queued .. " queued"
+    end
+    if totals.cost then
+      fparts[#fparts + 1] = ("total $%.2f"):format(totals.cost)
+    end
+    if state.sort ~= "recent" then
+      fparts[#fparts + 1] = "sort: " .. state.sort
+    end
+    if state.hide_merged then
+      fparts[#fparts + 1] = "[merged hidden]"
+    end
+    lines[#lines + 1] = ""
+    local footer = "  " .. table.concat(fparts, " · ")
+    lines[#lines + 1] = footer
+    marks[#marks + 1] = { line = #lines - 1, col = 0, end_col = #footer, hl = "HangarDim" }
+  end
+
   lines[#lines + 1] = ""
-  local hint = "  <CR> transcript  d diff  m merge  x discard  i iterate  K kill  R resume  s spawn  q quit"
+  local hint =
+    "  <CR> transcript  d diff  m merge  x discard  i iterate  K kill  R resume  s spawn  o sort  f filter  q quit"
   lines[#lines + 1] = hint
   marks[#marks + 1] = { line = #lines - 1, col = 0, end_col = #hint, hl = "HangarDim" }
 
@@ -135,6 +216,19 @@ function M.render(refresh_files)
   for _, m in ipairs(marks) do
     vim.api.nvim_buf_set_extmark(state.buf, ns, m.line, m.col, { end_col = m.end_col, hl_group = m.hl })
   end
+end
+
+---Cycle the row ordering: recent (default) -> status -> cost.
+function M.cycle_sort()
+  local next_mode = { recent = "status", status = "cost", cost = "recent" }
+  state.sort = next_mode[state.sort] or "recent"
+  M.render(false)
+end
+
+---Show/hide merged runs.
+function M.toggle_merged()
+  state.hide_merged = not state.hide_merged
+  M.render(false)
 end
 
 local function run_under_cursor()
@@ -362,6 +456,8 @@ function M.open()
   map("R", action_resume)
   map("i", action_iterate)
   map("s", action_spawn)
+  map("o", M.cycle_sort)
+  map("f", M.toggle_merged)
   map("r", function()
     M.render(true)
   end)
