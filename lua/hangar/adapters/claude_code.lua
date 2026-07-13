@@ -9,6 +9,7 @@ local M = { name = "claude_code" }
 ---@field permission_mode "acceptEdits"|"bypassPermissions"
 ---@field model string|nil
 ---@field cmd string|nil executable override for this adapter
+---@field cwd string|nil worktree path the run executes in (for CLIs that need it as a flag)
 
 ---@param opts hangar.SpawnCmdOpts
 ---@return string[]

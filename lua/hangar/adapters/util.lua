@@ -20,7 +20,7 @@ function M.input_summary(input)
   if type(input) ~= "table" then
     return ""
   end
-  for _, key in ipairs({ "file_path", "path", "pattern", "command", "prompt", "query", "url" }) do
+  for _, key in ipairs({ "file_path", "filePath", "path", "pattern", "command", "prompt", "query", "url", "patchText" }) do
     local v = input[key]
     if type(v) == "string" and v ~= "" then
       return M.truncate(v, 60)

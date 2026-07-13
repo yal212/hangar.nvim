@@ -136,6 +136,48 @@ check(vim.list_contains(cmd, "yolo") and vim.list_contains(cmd, "gemini-2.5-flas
 cmd = gemini.build_cmd({ prompt = "p", permission_mode = "acceptEdits" })
 check(vim.list_contains(cmd, "auto_edit"), "gemini: safe -> auto_edit approval")
 
+-- ── opencode adapter (canned lines captured from a real `opencode run --format json` run) ──
+local opencode = require("hangar.adapters.opencode")
+
+ev = opencode.parse_line('{"type":"step_start","timestamp":1783909220823,"sessionID":"ses_0a6b","part":{"id":"prt_1","type":"step-start"}}')
+check(ev and ev.kind == "init" and ev.session_id == "ses_0a6b", "opencode: step_start -> init")
+
+ev = opencode.parse_line('{"type":"text","sessionID":"ses_0a6b","part":{"type":"text","text":"hello hangar"}}')
+check(ev and ev.kind == "text" and ev.text == "hello hangar", "opencode: text part")
+
+ev = opencode.parse_line(
+  '{"type":"tool_use","sessionID":"s","part":{"type":"tool","tool":"apply_patch","callID":"c1","state":{"status":"completed","input":{"patchText":"*** Add File: probe.txt"},"output":"Success. Updated the following files:\\nA probe.txt","title":"Success"}}}'
+)
+check(ev and ev.kind == "batch" and #ev.events == 2, "opencode: tool_use -> batch")
+check(ev and ev.events[1].kind == "tool_use" and ev.events[1].tool == "apply_patch" and ev.events[1].summary:find("Add File", 1, true), "opencode: tool_use summary from input")
+check(ev and ev.events[2].kind == "tool_result" and ev.events[2].is_error == false and ev.events[2].text:find("probe.txt", 1, true), "opencode: tool output -> tool_result")
+
+ev = opencode.parse_line('{"type":"tool_use","part":{"type":"tool","tool":"bash","state":{"status":"error","input":{"command":"rm -rf /"},"output":"denied"}}}')
+check(ev and ev.events[2].is_error == true, "opencode: errored tool -> tool_result error")
+
+ev = opencode.parse_line('{"type":"step_finish","part":{"type":"step-finish","reason":"stop","tokens":{"total":10850},"cost":0.0123}}')
+check(ev and ev.kind == "result" and ev.partial == true and ev.cost == 0.0123, "opencode: step_finish -> partial result with cost")
+
+check(opencode.parse_line('{"type":"some_future_event"}') == nil, "opencode: ignores unknown event types")
+check(opencode.parse_line("garbage") == nil, "opencode: ignores garbage lines")
+
+cmd = opencode.build_cmd({ prompt = "p", permission_mode = "bypassPermissions", model = "anthropic/claude-haiku-4-5", cwd = "/wt/path" })
+check(cmd[1] == "opencode" and cmd[2] == "run" and vim.list_contains(cmd, "json"), "opencode: build_cmd shape")
+check(vim.list_contains(cmd, "--dir") and vim.list_contains(cmd, "/wt/path"), "opencode: --dir pins the worktree")
+check(vim.list_contains(cmd, "--auto") and vim.list_contains(cmd, "anthropic/claude-haiku-4-5") and cmd[#cmd] == "p", "opencode: yolo -> --auto, model, prompt last")
+cmd = opencode.build_cmd({ prompt = "p", permission_mode = "acceptEdits" })
+check(not vim.list_contains(cmd, "--auto"), "opencode: safe -> no --auto")
+
+-- ── partial result accumulation in the runner ────────────────────────
+do
+  local runner = require("hangar.runner")
+  local run = { events = {} }
+  runner._apply_event(run, { kind = "result", partial = true, cost = 0.01 })
+  runner._apply_event(run, { kind = "result", partial = true, cost = 0.02 })
+  check(#run.events == 0, "runner: partial results add no transcript entries")
+  check(math.abs(run.cost - 0.03) < 1e-9 and run.turns == 2, "runner: partial results accumulate cost + turns")
+end
+
 -- ── delta coalescing in the runner ───────────────────────────────────
 do
   local runner = require("hangar.runner")

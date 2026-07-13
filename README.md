@@ -44,7 +44,7 @@ lazy.nvim:
 | `:Hangar spawn --yolo <prompt>` | spawn an agent with full tool access (runs sandboxed in its worktree) |
 | `:Hangar spawn --safe <prompt>` | spawn an agent that can edit files but not run shell commands |
 | `:Hangar spawn --model haiku <prompt>` | pick a model per run |
-| `:Hangar spawn --adapter codex <prompt>` | pick an agent CLI per run (`claude_code`, `codex`, `gemini`) |
+| `:Hangar spawn --adapter codex <prompt>` | pick an agent CLI per run (`claude_code`, `codex`, `gemini`, `opencode`) |
 | `:Hangar kill <id>` | stop a running agent |
 | `:Hangar clean` | delete worktrees/branches of all finished runs |
 
@@ -76,7 +76,7 @@ Lua API: `require("hangar").spawn(prompt, { permission_mode = "bypassPermissions
 
 `:Hangar spawn` creates `.hangar/worktrees/<id>` on branch `hangar/<id>` (excluded from git status automatically), then runs `claude -p <prompt> --output-format stream-json` there via `vim.system`. Events stream into the run registry and every open UI updates through a `User HangarRunUpdate` autocmd. When a run finishes with uncommitted changes, hangar commits them so the branch is always mergeable. State persists to `stdpath("data")/hangar/runs.json`, so finished runs survive restarting Neovim.
 
-Adapters are a small contract (`name`, `build_cmd`, `parse_line`) — see `lua/hangar/adapters/`. Shipped adapters: **Claude Code** (`claude_code`, the default), **OpenAI Codex** (`codex`, via `codex exec --json`), and **Gemini CLI** (`gemini`, via `gemini -p -o stream-json`). An OpenCode adapter is a welcome contribution.
+Adapters are a small contract (`name`, `build_cmd`, `parse_line`) — see `lua/hangar/adapters/`. Shipped adapters: **Claude Code** (`claude_code`, the default), **OpenAI Codex** (`codex`, via `codex exec --json`), **Gemini CLI** (`gemini`, via `gemini -p -o stream-json`), and **OpenCode** (`opencode`, via `opencode run --format json`).
 
 ## Tests
 

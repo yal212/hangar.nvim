@@ -127,6 +127,12 @@ local function apply_event(run, ev)
     return -- not a transcript entry
   end
   if ev.kind == "result" then
+    if ev.partial then
+      -- per-step stats (opencode): accumulate, no transcript entry
+      run.cost = (run.cost or 0) + (ev.cost or 0)
+      run.turns = (run.turns or 0) + 1
+      return
+    end
     run.cost = ev.cost
     run.turns = ev.turns
     run.result_is_error = ev.is_error
@@ -214,6 +220,7 @@ function M.spawn(prompt, opts)
     permission_mode = opts.permission_mode,
     model = model,
     cmd = cmd_override,
+    cwd = wt.path,
   })
 
   ---@type hangar.Run
