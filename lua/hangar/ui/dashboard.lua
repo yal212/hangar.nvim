@@ -124,7 +124,7 @@ function M.render(refresh_files)
   end
 
   lines[#lines + 1] = ""
-  local hint = "  <CR> transcript   d diff   m merge   x discard   K kill   s spawn   q quit"
+  local hint = "  <CR> transcript  d diff  m merge  x discard  K kill  R resume  s spawn  q quit"
   lines[#lines + 1] = hint
   marks[#marks + 1] = { line = #lines - 1, col = 0, end_col = #hint, hl = "HangarDim" }
 
@@ -251,6 +251,19 @@ local function action_kill()
   end
 end
 
+local function action_resume()
+  local run = run_under_cursor()
+  if not run then
+    return
+  end
+  local ok, err = runner.resume(run.id)
+  if ok then
+    vim.notify(("[hangar] resumed %s in its worktree"):format(run.id))
+  else
+    notify_err(err)
+  end
+end
+
 local function action_spawn()
   vim.ui.input({ prompt = "Agent prompt: " }, function(prompt)
     if not prompt or vim.trim(prompt) == "" then
@@ -316,6 +329,7 @@ function M.open()
   map("m", action_merge)
   map("x", action_discard)
   map("K", action_kill)
+  map("R", action_resume)
   map("s", action_spawn)
   map("r", function()
     M.render(true)

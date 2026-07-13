@@ -9,6 +9,7 @@ function M.define()
     HangarFailed = "DiagnosticError",
     HangarMerged = "Special",
     HangarOrphaned = "DiagnosticWarn",
+    HangarDetached = "DiagnosticHint",
     HangarDim = "Comment",
     HangarHeader = "Title",
     HangarToolUse = "Function",

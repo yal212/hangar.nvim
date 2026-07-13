@@ -9,7 +9,7 @@ local M = {}
 ---@class hangar.Run
 ---@field id string
 ---@field prompt string
----@field status "queued"|"running"|"done"|"failed"|"killed"|"merged"|"orphaned"
+---@field status "queued"|"running"|"done"|"failed"|"killed"|"merged"|"orphaned"|"detached"
 ---@field adapter string
 ---@field permission_mode string
 ---@field model string|nil
@@ -63,9 +63,23 @@ function M.save()
   end
 end
 
+---True if the pid exists (signal 0 probes without killing).
+local function pid_alive(pid)
+  return pid ~= nil and vim.uv.kill(pid, 0) == 0
+end
+
+---Status for a run persisted as "running" by a previous session: "detached"
+---when its process is still alive, "orphaned" when it is gone.
+local function classify_loaded(run)
+  return pid_alive(run.pid) and "detached" or "orphaned"
+end
+
+M._classify_loaded = classify_loaded -- exposed for tests
+
 ---Load persisted runs once per session. Runs that were live in a previous
----session can't be reattached, so they become "orphaned" (worktree, if any,
----is still reviewable/mergeable).
+---session can't be reattached; if their process still exists they become
+---"detached" (watch it finish, then resume), otherwise "orphaned" (worktree,
+---if any, is still reviewable/mergeable, and the session may be resumable).
 function M.load()
   if loaded then
     return
@@ -83,7 +97,7 @@ function M.load()
   end
   for id, run in pairs(decoded) do
     if run.status == "running" then
-      run.status = "orphaned"
+      run.status = classify_loaded(run)
     elseif run.status == "queued" then
       -- never auto-spawn agents on startup; the prompt is still visible
       run.status = "killed"
@@ -93,10 +107,28 @@ function M.load()
   end
 end
 
----Runs for the given repo root, newest first.
+---Runs for the given repo root, newest first. Doubles as the liveness poll
+---for detached runs (the dashboard tick and pickers call this): a detached
+---process that died becomes "orphaned" — its exit code is unknowable.
 ---@return hangar.Run[]
 function M.list(root)
   M.load()
+  local died = {}
+  for _, run in pairs(M.runs) do
+    if run.status == "detached" and not pid_alive(run.pid) then
+      run.status = "orphaned"
+      run.finished = os.time()
+      died[#died + 1] = run.id
+    end
+  end
+  if #died > 0 then
+    M.save()
+    vim.schedule(function() -- deferred: list() is often called mid-render
+      for _, id in ipairs(died) do
+        notify_update(id)
+      end
+    end)
+  end
   local out = {}
   for _, run in pairs(M.runs) do
     if run.root == root then
@@ -291,18 +323,23 @@ local function start_job(run, adapter, cmd)
   run.pid = sysobj.pid
 end
 
+---Executable override for an adapter from config (incl. the deprecated
+---claude_cmd alias).
+local function cmd_override_for(adapter_name)
+  local config = require("hangar").config
+  local override = (config.adapters[adapter_name] or {}).cmd
+  if adapter_name == "claude_code" and not override and config.claude_cmd ~= "claude" then
+    override = config.claude_cmd
+  end
+  return override
+end
+
 ---Create a run's worktree and start its agent process.
 ---@param run hangar.Run
 ---@return boolean ok
 ---@return string|nil err
 local function start_run(run)
-  local config = require("hangar").config
   local adapter = assert(require("hangar.adapters").get(run.adapter)) -- validated at spawn
-  local overrides = config.adapters[run.adapter] or {}
-  local cmd_override = overrides.cmd
-  if run.adapter == "claude_code" and not cmd_override and config.claude_cmd ~= "claude" then
-    cmd_override = config.claude_cmd
-  end
 
   local ok, wt = pcall(worktree.create, run.root, run.id)
   if not ok then
@@ -314,7 +351,7 @@ local function start_run(run)
     prompt = run.prompt,
     permission_mode = run.permission_mode,
     model = run.model,
-    cmd = cmd_override,
+    cmd = cmd_override_for(run.adapter),
     cwd = wt.path,
   })
   start_job(run, adapter, cmd)
@@ -420,11 +457,64 @@ function M.kill(id)
     notify_update(id)
     return true
   end
+  if run.status == "detached" then
+    -- no job handle across restarts; signal the process directly
+    if run.pid then
+      vim.uv.kill(run.pid, 15)
+    end
+    run.status = "killed"
+    run.finished = os.time()
+    M.save()
+    notify_update(id)
+    return true
+  end
   if not job then
     return false, "run " .. id .. " is not running"
   end
   run.status = "killed"
   job:kill(15)
+  return true
+end
+
+---Resume an orphaned run's agent session in its original worktree (claude
+---keys sessions by cwd, so the worktree must still exist).
+---@return boolean ok
+---@return string|nil err
+function M.resume(id)
+  M.load()
+  local run = M.runs[id]
+  if not run then
+    return false, "no such run: " .. tostring(id)
+  end
+  if run.status ~= "orphaned" then
+    return false, "run " .. id .. " is " .. run.status .. "; only orphaned runs can resume"
+  end
+  local adapter, aerr = require("hangar.adapters").get(run.adapter)
+  if not adapter then
+    return false, aerr
+  end
+  if type(adapter.build_resume_cmd) ~= "function" then
+    return false, ("adapter %s does not support resume"):format(run.adapter)
+  end
+  if not run.session_id then
+    return false, "run " .. id .. " has no captured session id"
+  end
+  if not (run.worktree and vim.uv.fs_stat(run.worktree)) then
+    return false, "run " .. id .. "'s worktree no longer exists"
+  end
+
+  local cmd = adapter.build_resume_cmd({
+    session_id = run.session_id,
+    prompt = "Continue the previous task to completion.",
+    permission_mode = run.permission_mode,
+    model = run.model,
+    cmd = cmd_override_for(run.adapter),
+    cwd = run.worktree,
+  })
+  run.finished, run.exit_code, run.result_is_error, run.error = nil, nil, nil, nil
+  start_job(run, adapter, cmd) -- resumes bypass max_concurrent by design
+  M.save()
+  notify_update(id)
   return true
 end
 
@@ -434,7 +524,7 @@ function M.discard(id)
   if not run then
     return false, "no such run: " .. tostring(id)
   end
-  if run.status == "running" then
+  if run.status == "running" or run.status == "detached" then
     return false, "run " .. id .. " is still running; kill it first"
   end
   worktree.remove(run)
@@ -450,7 +540,7 @@ function M.merge(id, strategy)
   if not run then
     return false, "no such run: " .. tostring(id)
   end
-  if run.status == "running" then
+  if run.status == "running" or run.status == "detached" then
     return false, "run " .. id .. " is still running"
   end
   if run.status == "queued" then
@@ -472,7 +562,7 @@ end
 function M.clean(root)
   local count = 0
   for id, run in pairs(M.runs) do
-    if run.root == root and run.status ~= "running" then
+    if run.root == root and run.status ~= "running" and run.status ~= "detached" then
       worktree.remove(run)
       M.runs[id] = nil
       count = count + 1

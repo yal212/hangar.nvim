@@ -11,6 +11,7 @@ M.STATUS = {
   killed = { icon = "⊘", hl = "HangarFailed" },
   merged = { icon = "⇡", hl = "HangarMerged" },
   orphaned = { icon = "?", hl = "HangarOrphaned" },
+  detached = { icon = "◎", hl = "HangarDetached" },
 }
 
 ---@param status string

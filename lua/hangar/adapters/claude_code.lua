@@ -11,9 +11,16 @@ local M = { name = "claude_code" }
 ---@field cmd string|nil executable override for this adapter
 ---@field cwd string|nil worktree path the run executes in (for CLIs that need it as a flag)
 
+---@class hangar.ResumeCmdOpts: hangar.SpawnCmdOpts
+---@field session_id string session to resume (captured from the init event)
+
+local WORKTREE_STEER =
+  "You are working in an isolated git worktree. Create and modify files only inside the current working directory."
+
 ---@param opts hangar.SpawnCmdOpts
 ---@return string[]
 function M.build_cmd(opts)
+  -- sessions persist (no --no-session-persistence) so orphaned runs can resume
   local cmd = {
     opts.cmd or "claude",
     "-p",
@@ -21,12 +28,35 @@ function M.build_cmd(opts)
     "--output-format",
     "stream-json",
     "--verbose",
-    "--no-session-persistence",
     "--permission-mode",
     opts.permission_mode,
     -- steer models that reach for workspace-rooted absolute paths
     "--append-system-prompt",
-    "You are working in an isolated git worktree. Create and modify files only inside the current working directory.",
+    WORKTREE_STEER,
+  }
+  if opts.model then
+    vim.list_extend(cmd, { "--model", opts.model })
+  end
+  return cmd
+end
+
+---Resume a persisted session in the same worktree (claude keys sessions by cwd).
+---@param opts hangar.ResumeCmdOpts
+---@return string[]
+function M.build_resume_cmd(opts)
+  local cmd = {
+    opts.cmd or "claude",
+    "-p",
+    opts.prompt,
+    "--resume",
+    opts.session_id,
+    "--output-format",
+    "stream-json",
+    "--verbose",
+    "--permission-mode",
+    opts.permission_mode,
+    "--append-system-prompt",
+    WORKTREE_STEER,
   }
   if opts.model then
     vim.list_extend(cmd, { "--model", opts.model })

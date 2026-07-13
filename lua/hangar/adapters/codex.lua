@@ -16,11 +16,31 @@ local SANDBOX = {
 ---@param opts hangar.SpawnCmdOpts
 ---@return string[]
 function M.build_cmd(opts)
+  -- threads persist (no --ephemeral) so orphaned runs can resume
   local cmd = {
     opts.cmd or "codex",
     "exec",
     "--json",
-    "--ephemeral",
+    "--skip-git-repo-check",
+  }
+  vim.list_extend(cmd, SANDBOX[opts.permission_mode] or SANDBOX.acceptEdits)
+  if opts.model then
+    vim.list_extend(cmd, { "-m", opts.model })
+  end
+  cmd[#cmd + 1] = opts.prompt
+  return cmd
+end
+
+---Resume a persisted thread (`codex exec resume <thread_id>`).
+---@param opts hangar.ResumeCmdOpts
+---@return string[]
+function M.build_resume_cmd(opts)
+  local cmd = {
+    opts.cmd or "codex",
+    "exec",
+    "resume",
+    opts.session_id,
+    "--json",
     "--skip-git-repo-check",
   }
   vim.list_extend(cmd, SANDBOX[opts.permission_mode] or SANDBOX.acceptEdits)
