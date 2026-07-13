@@ -47,6 +47,7 @@ lazy.nvim:
 | `:Hangar spawn --adapter codex <prompt>` | pick an agent CLI per run (`claude_code`, `codex`, `gemini`, `opencode`) |
 | `:Hangar kill <id>` | stop a running agent |
 | `:Hangar clean` | delete worktrees/branches of all finished runs |
+| `:checkhealth hangar` | diagnose setup problems (git, agent CLIs, repo state) |
 
 Dashboard keys: `<CR>` transcript · `d` review/diff · `m` merge · `x` discard · `K` kill · `s` spawn · `r` refresh · `q` quit.
 
