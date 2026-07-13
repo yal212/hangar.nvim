@@ -87,6 +87,18 @@ require("lualine").setup({
 
 `require("hangar").status_counts()` returns the raw `{ running, done, failed }` table for custom formatting.
 
+### Pickers (optional)
+
+Fuzzy-find runs by prompt, status, or id as an alternative to the dashboard — `<CR>` transcript, `<C-d>` review/diff, `<C-x>` discard. The core plugin stays dependency-free; these load only if the host picker is installed.
+
+```vim
+" telescope.nvim:  :lua require('telescope').load_extension('hangar')  then
+:Telescope hangar runs
+
+" fzf-lua:
+:lua require("hangar.pickers.fzf").runs()
+```
+
 ## How it works
 
 `:Hangar spawn` creates `.hangar/worktrees/<id>` on branch `hangar/<id>` (excluded from git status automatically), then runs `claude -p <prompt> --output-format stream-json` there via `vim.system`. Events stream into the run registry and every open UI updates through a `User HangarRunUpdate` autocmd. When a run finishes with uncommitted changes, hangar commits them so the branch is always mergeable. State persists to `stdpath("data")/hangar/runs.json`, so finished runs survive restarting Neovim.
