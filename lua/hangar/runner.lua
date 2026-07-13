@@ -645,6 +645,9 @@ function M.discard(id)
 end
 
 ---Merge a finished run, then clean up its worktree + branch.
+---@return boolean ok
+---@return string|nil err
+---@return { rebaseable: boolean }|nil meta on failure (see worktree.merge)
 function M.merge(id, strategy)
   local run = M.runs[id]
   if not run then
@@ -656,15 +659,33 @@ function M.merge(id, strategy)
   if run.status == "queued" then
     return false, "run " .. id .. " has not started yet"
   end
-  local ok, err = worktree.merge(run, strategy or require("hangar").config.merge)
+  local ok, err, meta = worktree.merge(run, strategy or require("hangar").config.merge)
   if not ok then
-    return false, err
+    return false, err, meta
   end
   worktree.remove(run)
   run.status = "merged"
   M.save()
   notify_update(id)
   return true
+end
+
+---Rebase a run's branch onto the current HEAD, then retry the merge — the
+---way forward when merge() failed with meta.rebaseable.
+---@return boolean ok
+---@return string|nil err
+function M.rebase_and_merge(id, strategy)
+  local run = M.runs[id]
+  if not run then
+    return false, "no such run: " .. tostring(id)
+  end
+  local ok, err = worktree.rebase_onto_head(run)
+  if not ok then
+    return false, err
+  end
+  M.save() -- run.base moved
+  notify_update(id)
+  return M.merge(id, strategy)
 end
 
 ---Remove worktrees/branches of all non-running runs and drop them from the registry.

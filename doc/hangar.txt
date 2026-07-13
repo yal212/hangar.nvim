@@ -73,7 +73,11 @@ files, prompt. Updates live. Keys:
   d       review: changed files list; <CR> on a file opens a |diffsplit|
           against the run's base commit
   m       merge the run's branch into your current branch (confirm first);
-          for a best-of-N attempt, offers to discard the sibling attempts
+          for a best-of-N attempt, offers to discard the sibling attempts.
+          If the merge fails because the branches conflict or diverged,
+          offers to rebase the run branch onto your HEAD (inside its own
+          worktree — your tree is never touched) and retry; declining
+          leaves everything as it was
   x       discard: delete worktree + branch, forget the run (confirm first)
   i       iterate: prompt for feedback and spawn a follow-up run. Where the
           adapter supports resume (|hangar-adapters|), the follow-up

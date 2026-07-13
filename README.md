@@ -23,7 +23,7 @@ Power users already do this by hand: `tmux` panes, `git worktree add`, `claude -
 - **Parallel by default** — each run gets an isolated worktree + branch outside your repo; your working tree is never touched.
 - **Live mission control** — dashboard shows status, elapsed time, model, turn count, cost, and files changed for every run, updating in real time.
 - **Readable transcripts** — `<CR>` tails a run's stream as clean text and tool calls, not raw JSON.
-- **Native review** — `d` lists changed files; `<CR>` opens a real `diffsplit` against the run's base commit. `m` squash-merges the branch, `x` deletes worktree + branch.
+- **Native review** — `d` lists changed files; `<CR>` opens a real `diffsplit` against the run's base commit. `m` squash-merges the branch (offering a rebase-and-retry when it conflicts), `x` deletes worktree + branch.
 - **Zero dependencies** — pure Lua, no plenary, Neovim ≥ 0.10. Requires `git` and at least one agent CLI (`claude` by default).
 
 ## Install

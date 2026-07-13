@@ -198,7 +198,19 @@ local function action_merge()
   if choice ~= 1 then
     return
   end
-  local ok, err = runner.merge(run.id)
+  local ok, err, meta = runner.merge(run.id)
+  if not ok and meta and meta.rebaseable then
+    -- the agent branch is disposable; rebasing it onto HEAD usually resolves
+    choice = vim.fn.confirm(
+      ("Merge failed: %s\n\nRebase %s onto your HEAD and retry the merge?"):format(err, run.id),
+      "&Rebase and retry\n&Cancel",
+      2
+    )
+    if choice ~= 1 then
+      return
+    end
+    ok, err = runner.rebase_and_merge(run.id)
+  end
   if not ok then
     notify_err(err)
     return

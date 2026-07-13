@@ -146,6 +146,8 @@ end
 ---@param strategy "squash"|"ff"|"merge"
 ---@return boolean ok
 ---@return string|nil err
+---@return { rebaseable: boolean }|nil meta on failure: whether rebasing the
+---run branch onto HEAD (see |M.rebase_onto_head|) could make the merge work
 function M.merge(run, strategy)
   local dirty = git(run.root, { "status", "--porcelain" })
   if dirty.stdout ~= "" then
@@ -154,9 +156,11 @@ function M.merge(run, strategy)
   if strategy == "squash" then
     local res = git(run.root, { "merge", "--squash", run.branch })
     if res.code ~= 0 then
+      -- probe for real content conflicts before the cleanup wipes the index
+      local conflicted = git(run.root, { "ls-files", "-u" }).stdout ~= ""
       git(run.root, { "merge", "--abort" })
       git(run.root, { "reset", "--merge" })
-      return false, "squash merge failed: " .. res.stderr
+      return false, "squash merge failed: " .. res.stderr, { rebaseable = conflicted }
     end
     local msg = ("hangar: %s"):format((run.prompt or run.branch):sub(1, 72))
     local commit = git(run.root, { "commit", "-m", msg, "--no-verify" })
@@ -168,10 +172,36 @@ function M.merge(run, strategy)
     local flag = strategy == "ff" and "--ff-only" or "--no-ff"
     local res = git(run.root, { "merge", flag, run.branch })
     if res.code ~= 0 then
+      local conflicted = git(run.root, { "ls-files", "-u" }).stdout ~= ""
+      local diverged = strategy == "ff" and res.stderr:lower():find("fast%-forward") ~= nil
       git(run.root, { "merge", "--abort" })
-      return false, "merge failed: " .. res.stderr
+      return false, "merge failed: " .. res.stderr, { rebaseable = conflicted or diverged }
     end
   end
+  return true
+end
+
+---Rebase a run's branch onto the current HEAD of the main tree, inside the
+---run's worktree. The agent branch is disposable, so rewriting it is fine.
+---On conflict the rebase is aborted and the branch left untouched; on
+---success run.base moves to the new HEAD so review diffs stay correct.
+---@param run table
+---@return boolean ok
+---@return string|nil err
+function M.rebase_onto_head(run)
+  if not (run.worktree and vim.uv.fs_stat(run.worktree)) then
+    return false, "run has no worktree to rebase in"
+  end
+  local head = git(run.root, { "rev-parse", "HEAD" })
+  if head.code ~= 0 then
+    return false, "cannot resolve HEAD: " .. head.stderr
+  end
+  local res = git(run.worktree, { "rebase", head.stdout })
+  if res.code ~= 0 then
+    git(run.worktree, { "rebase", "--abort" })
+    return false, "rebase hit conflicts: " .. (res.stderr ~= "" and res.stderr or res.stdout)
+  end
+  run.base = head.stdout
   return true
 end
 
