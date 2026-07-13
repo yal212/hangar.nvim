@@ -22,10 +22,7 @@ local function open_diff(run, file)
   else
     -- worktree gone or file deleted: show branch blob (empty buffer if deleted)
     local blob = {}
-    local res = vim.system(
-      { "git", "show", run.branch .. ":" .. file.path },
-      { cwd = run.root, text = true }
-    ):wait()
+    local res = vim.system({ "git", "show", run.branch .. ":" .. file.path }, { cwd = run.root, text = true }):wait()
     if res.code == 0 then
       blob = vim.split(res.stdout, "\n", { plain = true })
     end
@@ -44,7 +41,10 @@ local function open_diff(run, file)
   vim.api.nvim_buf_set_name(base_buf, "hangar://base/" .. file.path)
   local base_content = worktree.show_base(run, file.path)
   vim.api.nvim_buf_set_lines(
-    base_buf, 0, -1, false,
+    base_buf,
+    0,
+    -1,
+    false,
     base_content and vim.split(base_content, "\n", { plain = true }) or {}
   )
   vim.bo[base_buf].buftype = "nofile"

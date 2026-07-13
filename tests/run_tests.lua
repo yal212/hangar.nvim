@@ -38,7 +38,10 @@ ev = adapter.parse_line(
 )
 check(ev and ev.kind == "batch" and #ev.events == 2, "parses assistant batch")
 check(ev and ev.events[1].kind == "text" and ev.events[1].text == "hi", "text block")
-check(ev and ev.events[2].kind == "tool_use" and ev.events[2].tool == "Edit" and ev.events[2].summary == "/a/b.lua", "tool_use block + summary")
+check(
+  ev and ev.events[2].kind == "tool_use" and ev.events[2].tool == "Edit" and ev.events[2].summary == "/a/b.lua",
+  "tool_use block + summary"
+)
 
 ev = adapter.parse_line(
   '{"type":"user","message":{"content":[{"type":"tool_result","content":[{"type":"text","text":"done"}],"is_error":false}]}}'
@@ -62,7 +65,10 @@ check(vim.list_contains(cmd, "bypassPermissions") and vim.list_contains(cmd, "ha
 local codex = require("hangar.adapters.codex")
 
 ev = codex.parse_line('{"type":"thread.started","thread_id":"019f593c-b70e-7e50-8fe1-9adc2a2deb22"}')
-check(ev and ev.kind == "init" and ev.session_id == "019f593c-b70e-7e50-8fe1-9adc2a2deb22", "codex: init from thread.started")
+check(
+  ev and ev.kind == "init" and ev.session_id == "019f593c-b70e-7e50-8fe1-9adc2a2deb22",
+  "codex: init from thread.started"
+)
 
 check(codex.parse_line('{"type":"turn.started"}') == nil, "codex: turn.started ignored")
 
@@ -72,24 +78,45 @@ check(ev and ev.kind == "text" and ev.text == "hello hangar", "codex: agent_mess
 ev = codex.parse_line(
   '{"type":"item.started","item":{"id":"item_1","type":"command_execution","command":"/bin/zsh -lc \\"printf hi > probe.txt\\"","aggregated_output":"","exit_code":null,"status":"in_progress"}}'
 )
-check(ev and ev.kind == "tool_use" and ev.tool == "shell" and ev.summary:find("printf", 1, true), "codex: command start -> tool_use")
+check(
+  ev and ev.kind == "tool_use" and ev.tool == "shell" and ev.summary:find("printf", 1, true),
+  "codex: command start -> tool_use"
+)
 
 ev = codex.parse_line(
   '{"type":"item.completed","item":{"id":"item_1","type":"command_execution","command":"c","aggregated_output":"       3 probe.txt\\n","exit_code":0,"status":"completed"}}'
 )
-check(ev and ev.kind == "tool_result" and ev.is_error == false and ev.text:find("probe.txt", 1, true), "codex: command done -> tool_result")
+check(
+  ev and ev.kind == "tool_result" and ev.is_error == false and ev.text:find("probe.txt", 1, true),
+  "codex: command done -> tool_result"
+)
 
-ev = codex.parse_line('{"type":"item.completed","item":{"id":"i","type":"command_execution","command":"c","aggregated_output":"boom","exit_code":1,"status":"failed"}}')
+ev = codex.parse_line(
+  '{"type":"item.completed","item":{"id":"i","type":"command_execution","command":"c","aggregated_output":"boom","exit_code":1,"status":"failed"}}'
+)
 check(ev and ev.kind == "tool_result" and ev.is_error == true, "codex: failed command -> tool_result error")
 
-ev = codex.parse_line('{"type":"item.completed","item":{"id":"i","type":"file_change","changes":[{"path":"/a/b.lua","kind":"update"}],"status":"completed"}}')
-check(ev and ev.kind == "tool_use" and ev.tool == "edit" and ev.summary:find("b.lua", 1, true), "codex: file_change -> tool_use")
+ev = codex.parse_line(
+  '{"type":"item.completed","item":{"id":"i","type":"file_change","changes":[{"path":"/a/b.lua","kind":"update"}],"status":"completed"}}'
+)
+check(
+  ev and ev.kind == "tool_use" and ev.tool == "edit" and ev.summary:find("b.lua", 1, true),
+  "codex: file_change -> tool_use"
+)
 
-ev = codex.parse_line('{"type":"turn.completed","usage":{"input_tokens":12131,"cached_input_tokens":1920,"output_tokens":7}}')
-check(ev and ev.kind == "result" and ev.is_error == false and ev.cost == nil, "codex: turn.completed -> result, no cost")
+ev = codex.parse_line(
+  '{"type":"turn.completed","usage":{"input_tokens":12131,"cached_input_tokens":1920,"output_tokens":7}}'
+)
+check(
+  ev and ev.kind == "result" and ev.is_error == false and ev.cost == nil,
+  "codex: turn.completed -> result, no cost"
+)
 
 ev = codex.parse_line('{"type":"turn.failed","error":{"message":"rate limited"}}')
-check(ev and ev.kind == "result" and ev.is_error == true and ev.text == "rate limited", "codex: turn.failed -> error result")
+check(
+  ev and ev.kind == "result" and ev.is_error == true and ev.text == "rate limited",
+  "codex: turn.failed -> error result"
+)
 
 check(codex.parse_line('{"type":"some_future_event"}') == nil, "codex: ignores unknown event types")
 check(codex.parse_line("not json") == nil, "codex: ignores garbage lines")
@@ -112,26 +139,42 @@ check(gemini.parse_line('{"type":"message","role":"user","content":"the prompt"}
 ev = gemini.parse_line('{"type":"message","role":"assistant","content":"hel","delta":true}')
 check(ev and ev.kind == "text" and ev.text == "hel" and ev.delta == true, "gemini: assistant delta -> text")
 
-ev = gemini.parse_line('{"type":"tool_use","tool_name":"write_file","tool_id":"t1","parameters":{"file_path":"/a/b.md"}}')
-check(ev and ev.kind == "tool_use" and ev.tool == "write_file" and ev.summary == "/a/b.md", "gemini: tool_use + summary")
+ev =
+  gemini.parse_line('{"type":"tool_use","tool_name":"write_file","tool_id":"t1","parameters":{"file_path":"/a/b.md"}}')
+check(
+  ev and ev.kind == "tool_use" and ev.tool == "write_file" and ev.summary == "/a/b.md",
+  "gemini: tool_use + summary"
+)
 
 ev = gemini.parse_line('{"type":"tool_result","tool_id":"t1","status":"success","output":"wrote file"}')
 check(ev and ev.kind == "tool_result" and ev.is_error == false and ev.text == "wrote file", "gemini: tool_result ok")
 
-ev = gemini.parse_line('{"type":"tool_result","tool_id":"t2","status":"error","output":"","error":{"type":"TOOL_EXECUTION_ERROR","message":"denied"}}')
+ev = gemini.parse_line(
+  '{"type":"tool_result","tool_id":"t2","status":"error","output":"","error":{"type":"TOOL_EXECUTION_ERROR","message":"denied"}}'
+)
 check(ev and ev.kind == "tool_result" and ev.is_error == true and ev.text == "denied", "gemini: tool_result error")
 
-ev = gemini.parse_line('{"type":"result","status":"success","stats":{"total_tokens":100,"duration_ms":4200,"tool_calls":2}}')
-check(ev and ev.kind == "result" and ev.is_error == false and ev.duration_ms == 4200 and ev.cost == nil, "gemini: success result, no cost")
+ev = gemini.parse_line(
+  '{"type":"result","status":"success","stats":{"total_tokens":100,"duration_ms":4200,"tool_calls":2}}'
+)
+check(
+  ev and ev.kind == "result" and ev.is_error == false and ev.duration_ms == 4200 and ev.cost == nil,
+  "gemini: success result, no cost"
+)
 
-ev = gemini.parse_line('{"type":"result","status":"error","error":{"type":"FatalAuthenticationError","message":"auth failed"},"stats":{}}')
+ev = gemini.parse_line(
+  '{"type":"result","status":"error","error":{"type":"FatalAuthenticationError","message":"auth failed"},"stats":{}}'
+)
 check(ev and ev.kind == "result" and ev.is_error == true and ev.text == "auth failed", "gemini: error result")
 
 check(gemini.parse_line('{"type":"some_future_event"}') == nil, "gemini: ignores unknown event types")
 check(gemini.parse_line("garbage") == nil, "gemini: ignores garbage lines")
 
 cmd = gemini.build_cmd({ prompt = "p", permission_mode = "bypassPermissions", model = "gemini-2.5-flash" })
-check(cmd[1] == "gemini" and vim.list_contains(cmd, "stream-json") and vim.list_contains(cmd, "--skip-trust"), "gemini: build_cmd shape")
+check(
+  cmd[1] == "gemini" and vim.list_contains(cmd, "stream-json") and vim.list_contains(cmd, "--skip-trust"),
+  "gemini: build_cmd shape"
+)
 check(vim.list_contains(cmd, "yolo") and vim.list_contains(cmd, "gemini-2.5-flash"), "gemini: yolo approval + model")
 cmd = gemini.build_cmd({ prompt = "p", permission_mode = "acceptEdits" })
 check(vim.list_contains(cmd, "auto_edit"), "gemini: safe -> auto_edit approval")
@@ -139,7 +182,9 @@ check(vim.list_contains(cmd, "auto_edit"), "gemini: safe -> auto_edit approval")
 -- ── opencode adapter (canned lines captured from a real `opencode run --format json` run) ──
 local opencode = require("hangar.adapters.opencode")
 
-ev = opencode.parse_line('{"type":"step_start","timestamp":1783909220823,"sessionID":"ses_0a6b","part":{"id":"prt_1","type":"step-start"}}')
+ev = opencode.parse_line(
+  '{"type":"step_start","timestamp":1783909220823,"sessionID":"ses_0a6b","part":{"id":"prt_1","type":"step-start"}}'
+)
 check(ev and ev.kind == "init" and ev.session_id == "ses_0a6b", "opencode: step_start -> init")
 
 ev = opencode.parse_line('{"type":"text","sessionID":"ses_0a6b","part":{"type":"text","text":"hello hangar"}}')
@@ -149,22 +194,49 @@ ev = opencode.parse_line(
   '{"type":"tool_use","sessionID":"s","part":{"type":"tool","tool":"apply_patch","callID":"c1","state":{"status":"completed","input":{"patchText":"*** Add File: probe.txt"},"output":"Success. Updated the following files:\\nA probe.txt","title":"Success"}}}'
 )
 check(ev and ev.kind == "batch" and #ev.events == 2, "opencode: tool_use -> batch")
-check(ev and ev.events[1].kind == "tool_use" and ev.events[1].tool == "apply_patch" and ev.events[1].summary:find("Add File", 1, true), "opencode: tool_use summary from input")
-check(ev and ev.events[2].kind == "tool_result" and ev.events[2].is_error == false and ev.events[2].text:find("probe.txt", 1, true), "opencode: tool output -> tool_result")
+check(
+  ev
+    and ev.events[1].kind == "tool_use"
+    and ev.events[1].tool == "apply_patch"
+    and ev.events[1].summary:find("Add File", 1, true),
+  "opencode: tool_use summary from input"
+)
+check(
+  ev
+    and ev.events[2].kind == "tool_result"
+    and ev.events[2].is_error == false
+    and ev.events[2].text:find("probe.txt", 1, true),
+  "opencode: tool output -> tool_result"
+)
 
-ev = opencode.parse_line('{"type":"tool_use","part":{"type":"tool","tool":"bash","state":{"status":"error","input":{"command":"rm -rf /"},"output":"denied"}}}')
+ev = opencode.parse_line(
+  '{"type":"tool_use","part":{"type":"tool","tool":"bash","state":{"status":"error","input":{"command":"rm -rf /"},"output":"denied"}}}'
+)
 check(ev and ev.events[2].is_error == true, "opencode: errored tool -> tool_result error")
 
-ev = opencode.parse_line('{"type":"step_finish","part":{"type":"step-finish","reason":"stop","tokens":{"total":10850},"cost":0.0123}}')
-check(ev and ev.kind == "result" and ev.partial == true and ev.cost == 0.0123, "opencode: step_finish -> partial result with cost")
+ev = opencode.parse_line(
+  '{"type":"step_finish","part":{"type":"step-finish","reason":"stop","tokens":{"total":10850},"cost":0.0123}}'
+)
+check(
+  ev and ev.kind == "result" and ev.partial == true and ev.cost == 0.0123,
+  "opencode: step_finish -> partial result with cost"
+)
 
 check(opencode.parse_line('{"type":"some_future_event"}') == nil, "opencode: ignores unknown event types")
 check(opencode.parse_line("garbage") == nil, "opencode: ignores garbage lines")
 
-cmd = opencode.build_cmd({ prompt = "p", permission_mode = "bypassPermissions", model = "anthropic/claude-haiku-4-5", cwd = "/wt/path" })
+cmd = opencode.build_cmd({
+  prompt = "p",
+  permission_mode = "bypassPermissions",
+  model = "anthropic/claude-haiku-4-5",
+  cwd = "/wt/path",
+})
 check(cmd[1] == "opencode" and cmd[2] == "run" and vim.list_contains(cmd, "json"), "opencode: build_cmd shape")
 check(vim.list_contains(cmd, "--dir") and vim.list_contains(cmd, "/wt/path"), "opencode: --dir pins the worktree")
-check(vim.list_contains(cmd, "--auto") and vim.list_contains(cmd, "anthropic/claude-haiku-4-5") and cmd[#cmd] == "p", "opencode: yolo -> --auto, model, prompt last")
+check(
+  vim.list_contains(cmd, "--auto") and vim.list_contains(cmd, "anthropic/claude-haiku-4-5") and cmd[#cmd] == "p",
+  "opencode: yolo -> --auto, model, prompt last"
+)
 cmd = opencode.build_cmd({ prompt = "p", permission_mode = "acceptEdits" })
 check(not vim.list_contains(cmd, "--auto"), "opencode: safe -> no --auto")
 
@@ -197,7 +269,10 @@ check(registry.get("claude_code") ~= nil, "registry: resolves claude_code")
 check(registry.get("codex") ~= nil, "registry: resolves codex")
 check(registry.get("no_such_adapter") == nil, "registry: unknown adapter -> nil")
 check(select(2, registry.get("no_such_adapter")):find("available", 1, true) ~= nil, "registry: error lists available")
-check(vim.list_contains(registry.available(), "codex") and not vim.list_contains(registry.available(), "util"), "registry: available() lists adapters only")
+check(
+  vim.list_contains(registry.available(), "codex") and not vim.list_contains(registry.available(), "util"),
+  "registry: available() lists adapters only"
+)
 
 -- ── spawn arg parsing ────────────────────────────────────────────────
 local hangar = require("hangar")
@@ -273,14 +348,12 @@ local function run_e2e(adapter_name)
 
   vim.fn.chdir(repo)
 
-  local run = hangar.spawn(
-    "Append the exact line 'hangar-test' to README.md. Make no other changes and do not commit.",
-    {
+  local run =
+    hangar.spawn("Append the exact line 'hangar-test' to README.md. Make no other changes and do not commit.", {
       permission_mode = "bypassPermissions",
       adapter = adapter_name,
       model = E2E_MODEL[adapter_name],
-    }
-  )
+    })
   local t = adapter_name .. ": "
   check(run ~= nil, t .. "spawn returns a run")
   if not run then
@@ -294,7 +367,10 @@ local function run_e2e(adapter_name)
     return run.status ~= "running"
   end, 250)
   check(done, t .. "run finished within timeout")
-  check(run.status == "done", t .. "run status is done (got: " .. run.status .. (run.error and (", err: " .. run.error) or "") .. ")")
+  check(
+    run.status == "done",
+    t .. "run status is done (got: " .. run.status .. (run.error and (", err: " .. run.error) or "") .. ")"
+  )
   check(#run.events > 0, t .. "transcript events captured")
   if adapter_name == "claude_code" then
     check(type(run.cost) == "number", t .. "cost parsed from result event")
@@ -307,7 +383,9 @@ local function run_e2e(adapter_name)
 
   local worktree = require("hangar.worktree")
   local files = worktree.changed_files(run)
-  local touched = vim.tbl_map(function(x) return x.path end, files)
+  local touched = vim.tbl_map(function(x)
+    return x.path
+  end, files)
   check(vim.list_contains(touched, "README.md"), t .. "README.md in changed files")
 
   local diff = sh(repo, { "git", "diff", run.base .. "..." .. run.branch })

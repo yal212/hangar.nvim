@@ -1,5 +1,7 @@
 # hangar.nvim
 
+[![CI](https://github.com/yal212/hangar.nvim/actions/workflows/ci.yml/badge.svg)](https://github.com/yal212/hangar.nvim/actions/workflows/ci.yml)
+
 **Run a fleet of coding agents in parallel git worktrees. Review and merge from a dashboard.**
 
 Spawn headless agent runs — [Claude Code](https://claude.com/claude-code) (default), OpenAI Codex, Gemini CLI, or OpenCode — on different tasks, each in its own git worktree and branch. Watch them work live, diff the results, merge the winners, discard the rest. Never leave Neovim.

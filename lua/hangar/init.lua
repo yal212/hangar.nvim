@@ -69,8 +69,9 @@ local function parse_spawn_args(fargs)
     permission = default and PERMISSION_MODES[default]
   end
   if not permission then
-    return nil, "pass --yolo (full tool access) or --safe (edits only, no shell), "
-      .. 'or set setup({ default_permission = "yolo"|"safe" })'
+    return nil,
+      "pass --yolo (full tool access) or --safe (edits only, no shell), "
+        .. 'or set setup({ default_permission = "yolo"|"safe" })'
   end
   local prompt = table.concat(vim.list_slice(fargs, i), " ")
   if vim.trim(prompt) == "" then
@@ -112,10 +113,7 @@ function M.spawn(prompt, opts)
   local group = os.date("g%H%M%S")
   local runs = {}
   for attempt = 1, n do
-    local run, err = runner.spawn(
-      prompt,
-      vim.tbl_extend("force", opts, { group = group, attempt = attempt })
-    )
+    local run, err = runner.spawn(prompt, vim.tbl_extend("force", opts, { group = group, attempt = attempt }))
     if not run then
       vim.notify("[hangar] attempt " .. attempt .. ": " .. err, vim.log.levels.ERROR)
       break

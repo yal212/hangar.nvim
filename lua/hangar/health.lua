@@ -30,10 +30,7 @@ function M.check()
     if major and (tonumber(major) > 2 or (tonumber(major) == 2 and tonumber(minor) >= 5)) then
       health.ok(("git found: %s"):format(v))
     else
-      health.error(
-        ("git %s is too old for `git worktree`"):format(v),
-        "Install git >= 2.5."
-      )
+      health.error(("git %s is too old for `git worktree`"):format(v), "Install git >= 2.5.")
     end
   else
     health.error("git not found on PATH", "Install git — hangar cannot create worktrees without it.")
@@ -59,9 +56,7 @@ function M.check()
           ("Install it or point setup({ adapters = { %s = { cmd = ... } } }) at the executable."):format(name)
         )
       else
-        health.warn(
-          ("%s: `%s` not found on PATH (only needed for --adapter %s runs)"):format(label, exe, name)
-        )
+        health.warn(("%s: `%s` not found on PATH (only needed for --adapter %s runs)"):format(label, exe, name))
       end
     end
   end

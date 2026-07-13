@@ -16,7 +16,8 @@ function M.get(name)
   if not ok then
     return nil, ("unknown adapter %q (available: %s)"):format(name, table.concat(M.available(), ", "))
   end
-  if type(adapter) ~= "table"
+  if
+    type(adapter) ~= "table"
     or type(adapter.name) ~= "string"
     or type(adapter.build_cmd) ~= "function"
     or type(adapter.parse_line) ~= "function"

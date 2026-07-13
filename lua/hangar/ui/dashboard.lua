@@ -63,7 +63,14 @@ function M.render(refresh_files)
 
   lines[1] = ""
   lines[2] = ("  %-1s %-9s %-7s %-10s %5s %8s %5s  %s"):format(
-    " ", "run", "time", "model", "turns", "cost", "files", "prompt"
+    " ",
+    "run",
+    "time",
+    "model",
+    "turns",
+    "cost",
+    "files",
+    "prompt"
   )
   marks[#marks + 1] = { line = 1, col = 0, end_col = #lines[2], hl = "HangarHeader" }
 
@@ -334,11 +341,15 @@ function M.open()
 
   -- 1s tick keeps elapsed times moving while any run is live; skips git calls
   state.timer = assert(vim.uv.new_timer())
-  state.timer:start(1000, 1000, vim.schedule_wrap(function()
-    if is_open() then
-      M.render(false)
-    end
-  end))
+  state.timer:start(
+    1000,
+    1000,
+    vim.schedule_wrap(function()
+      if is_open() then
+        M.render(false)
+      end
+    end)
+  )
 
   M.render(true)
 end
