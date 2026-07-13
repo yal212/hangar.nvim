@@ -28,6 +28,8 @@ local M = {}
 ---@field stderr string|nil
 ---@field pid integer|nil
 ---@field result_is_error boolean|nil
+---@field group string|nil best-of-n group id shared by sibling attempts
+---@field attempt integer|nil 1-based attempt index within the group
 
 ---Registry: id -> run. Job handles live in `jobs` (not serializable).
 M.runs = {}
@@ -181,6 +183,8 @@ end
 ---@field permission_mode "acceptEdits"|"bypassPermissions"
 ---@field model string|nil
 ---@field adapter string|nil adapter name, defaults to config.adapter
+---@field group string|nil best-of-n group id (set by hangar.spawn for --n fleets)
+---@field attempt integer|nil attempt index within the group
 
 ---Spawn an agent run in a fresh worktree.
 ---@param prompt string
@@ -237,6 +241,8 @@ function M.spawn(prompt, opts)
     base = wt.base,
     started = os.time(),
     events = {},
+    group = opts.group,
+    attempt = opts.attempt,
   }
   M.runs[id] = run
 

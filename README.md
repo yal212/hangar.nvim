@@ -45,11 +45,14 @@ lazy.nvim:
 | `:Hangar spawn --safe <prompt>` | spawn an agent that can edit files but not run shell commands |
 | `:Hangar spawn --model haiku <prompt>` | pick a model per run |
 | `:Hangar spawn --adapter codex <prompt>` | pick an agent CLI per run (`claude_code`, `codex`, `gemini`, `opencode`) |
+| `:Hangar spawn --n 3 --yolo <prompt>` | best-of-3: three attempts of the same prompt in parallel worktrees |
 | `:Hangar kill <id>` | stop a running agent |
 | `:Hangar clean` | delete worktrees/branches of all finished runs |
 | `:checkhealth hangar` | diagnose setup problems (git, agent CLIs, repo state) |
 
 Dashboard keys: `<CR>` transcript · `d` review/diff · `m` merge · `x` discard · `K` kill · `s` spawn · `r` refresh · `q` quit.
+
+With `--n`, the dashboard groups the attempts under one shared prompt line; compare their diffs with `d`, and merging one offers to discard its siblings.
 
 Every spawn needs an explicit `--yolo` or `--safe` — headless agents can't answer permission prompts, so you choose the blast radius per run. If you always want one mode:
 

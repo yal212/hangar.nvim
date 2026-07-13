@@ -73,9 +73,8 @@ function M.render(refresh_files)
     marks[#marks + 1] = { line = #lines - 1, col = 0, end_col = #lines[#lines], hl = "HangarDim" }
   end
 
-  for _, run in ipairs(runs) do
+  local function add_row(run, prompt_text)
     local st = STATUS[run.status] or { icon = " ", hl = "HangarDim" }
-    local prompt = run.prompt:gsub("%s+", " ")
     local row = ("  %s %-9s %-7s %-10s %5s %8s %5s  %s"):format(
       st.icon,
       run.id,
@@ -84,11 +83,38 @@ function M.render(refresh_files)
       run.turns or "-",
       run.cost and ("$%.2f"):format(run.cost) or "-",
       files_count(run, refresh_files) or "-",
-      prompt:sub(1, 50) .. (#prompt > 50 and "…" or "")
+      prompt_text
     )
     lines[#lines + 1] = row
     state.line_runs[#lines] = run.id
     marks[#marks + 1] = { line = #lines - 1, col = 2, end_col = 2 + #st.icon, hl = st.hl }
+  end
+
+  local function clip(prompt, max)
+    prompt = prompt:gsub("%s+", " ")
+    return prompt:sub(1, max) .. (#prompt > max and "…" or "")
+  end
+
+  -- best-of-n attempts render under one shared prompt header
+  local rendered_groups = {}
+  for _, run in ipairs(runs) do
+    if not run.group then
+      add_row(run, clip(run.prompt, 50))
+    elseif not rendered_groups[run.group] then
+      rendered_groups[run.group] = true
+      local members = vim.tbl_filter(function(r)
+        return r.group == run.group
+      end, runs)
+      table.sort(members, function(a, b)
+        return (a.attempt or 0) < (b.attempt or 0)
+      end)
+      local header = ("  %d× %s"):format(#members, clip(run.prompt, 70))
+      lines[#lines + 1] = header
+      marks[#marks + 1] = { line = #lines - 1, col = 0, end_col = #header, hl = "HangarDim" }
+      for _, member in ipairs(members) do
+        add_row(member, ("↳ attempt %d"):format(member.attempt or 0))
+      end
+    end
   end
 
   lines[#lines + 1] = ""
@@ -146,6 +172,16 @@ local function action_review()
   end
 end
 
+---Sibling attempts of a merged best-of-n run that are safe to discard.
+local function discardable_siblings(run)
+  if not run.group then
+    return {}
+  end
+  return vim.tbl_filter(function(r)
+    return r.group == run.group and r.id ~= run.id and r.status ~= "running" and r.status ~= "merged"
+  end, runner.list(run.root))
+end
+
 local function action_merge()
   local run = run_under_cursor()
   if not run then
@@ -157,10 +193,29 @@ local function action_merge()
     return
   end
   local ok, err = runner.merge(run.id)
-  if ok then
-    vim.notify(("[hangar] merged %s"):format(run.id))
-  else
+  if not ok then
     notify_err(err)
+    return
+  end
+  vim.notify(("[hangar] merged %s"):format(run.id))
+
+  local siblings = discardable_siblings(run)
+  if #siblings == 0 then
+    return
+  end
+  choice = vim.fn.confirm(
+    ("Discard the %d other attempt(s) of this prompt? Worktrees and branches are deleted."):format(#siblings),
+    "&Yes\n&No",
+    1
+  )
+  if choice ~= 1 then
+    return
+  end
+  for _, sibling in ipairs(siblings) do
+    local sok, serr = runner.discard(sibling.id)
+    if not sok then
+      notify_err(serr)
+    end
   end
 end
 

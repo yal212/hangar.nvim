@@ -31,25 +31,32 @@ end
 
 local PERMISSION_MODES = { yolo = "bypassPermissions", safe = "acceptEdits" }
 
----Parse `:Hangar spawn` args: flags (--yolo/--safe/--model m/--adapter a) then prompt.
----@return table|nil parsed { prompt, permission_mode, model, adapter }
+local MAX_FLEET = 8
+
+---Parse `:Hangar spawn` args: flags (--yolo/--safe/--model m/--adapter a/--n c) then prompt.
+---@return table|nil parsed { prompt, permission_mode, model, adapter, n }
 ---@return string|nil err
 local function parse_spawn_args(fargs)
-  local permission, model, adapter
+  local permission, model, adapter, n
   local i = 1
   while i <= #fargs do
     local a = fargs[i]
     if a == "--yolo" or a == "--safe" then
       permission = PERMISSION_MODES[a:sub(3)]
-    elseif a == "--model" or a == "--adapter" then
+    elseif a == "--model" or a == "--adapter" or a == "--n" then
       local value = fargs[i + 1]
       if not value then
         return nil, a .. " needs a value"
       end
       if a == "--model" then
         model = value
-      else
+      elseif a == "--adapter" then
         adapter = value
+      else
+        n = tonumber(value)
+        if not n or n ~= math.floor(n) or n < 1 or n > MAX_FLEET then
+          return nil, ("--n needs a whole number between 1 and %d"):format(MAX_FLEET)
+        end
       end
       i = i + 1
     else
@@ -69,13 +76,14 @@ local function parse_spawn_args(fargs)
   if vim.trim(prompt) == "" then
     return nil, "usage: :Hangar spawn [--yolo|--safe] [--adapter <a>] [--model <m>] <prompt>"
   end
-  return { prompt = prompt, permission_mode = permission, model = model, adapter = adapter }
+  return { prompt = prompt, permission_mode = permission, model = model, adapter = adapter, n = n }
 end
 
 M._parse_spawn_args = parse_spawn_args -- exposed for tests
 
 ---@param prompt string
----@param opts table|nil { permission_mode?, model? }  Lua API entry point
+---@param opts table|nil { permission_mode?, model?, adapter?, n? }  Lua API entry point
+---@return hangar.Run|hangar.Run[]|nil run single run, or the list of attempts when n > 1
 function M.spawn(prompt, opts)
   opts = opts or {}
   if not opts.permission_mode then
@@ -86,13 +94,38 @@ function M.spawn(prompt, opts)
     vim.notify("[hangar] spawn needs permission_mode (or default_permission in setup)", vim.log.levels.ERROR)
     return
   end
-  local run, err = require("hangar.runner").spawn(prompt, opts)
-  if not run then
-    vim.notify("[hangar] " .. err, vim.log.levels.ERROR)
-    return
+  local runner = require("hangar.runner")
+  local n = opts.n or 1
+  opts.n = nil
+
+  if n == 1 then
+    local run, err = runner.spawn(prompt, opts)
+    if not run then
+      vim.notify("[hangar] " .. err, vim.log.levels.ERROR)
+      return
+    end
+    vim.notify(("[hangar] spawned run %s on branch %s"):format(run.id, run.branch))
+    return run
   end
-  vim.notify(("[hangar] spawned run %s on branch %s"):format(run.id, run.branch))
-  return run
+
+  -- best-of-n: same prompt, n isolated attempts sharing a group id
+  local group = os.date("g%H%M%S")
+  local runs = {}
+  for attempt = 1, n do
+    local run, err = runner.spawn(
+      prompt,
+      vim.tbl_extend("force", opts, { group = group, attempt = attempt })
+    )
+    if not run then
+      vim.notify("[hangar] attempt " .. attempt .. ": " .. err, vim.log.levels.ERROR)
+      break
+    end
+    runs[#runs + 1] = run
+  end
+  if #runs > 0 then
+    vim.notify(("[hangar] spawned %d attempts of the same prompt (group %s)"):format(#runs, group))
+  end
+  return runs
 end
 
 ---:Hangar command dispatcher.
@@ -115,6 +148,7 @@ function M._command(cmd)
       permission_mode = parsed.permission_mode,
       model = parsed.model,
       adapter = parsed.adapter,
+      n = parsed.n,
     })
   elseif sub == "kill" then
     local ok, err = require("hangar.runner").kill(fargs[2])
@@ -150,7 +184,7 @@ function M._complete(arg_lead, cmd_line)
     end
     return vim.tbl_filter(function(s)
       return vim.startswith(s, arg_lead)
-    end, { "--yolo", "--safe", "--model", "--adapter" })
+    end, { "--yolo", "--safe", "--model", "--adapter", "--n" })
   end
   if args[2] == "kill" then
     local runner = require("hangar.runner")
