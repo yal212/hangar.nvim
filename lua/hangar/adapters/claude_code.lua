@@ -1,18 +1,20 @@
 ---Adapter for the Claude Code CLI (`claude -p --output-format stream-json`).
 ---Adapter contract: `name`, `build_cmd(opts) -> argv`, `parse_line(line) -> event|nil`.
+local util = require("hangar.adapters.util")
+
 local M = { name = "claude_code" }
 
 ---@class hangar.SpawnCmdOpts
 ---@field prompt string
 ---@field permission_mode "acceptEdits"|"bypassPermissions"
 ---@field model string|nil
----@field claude_cmd string|nil
+---@field cmd string|nil executable override for this adapter
 
 ---@param opts hangar.SpawnCmdOpts
 ---@return string[]
 function M.build_cmd(opts)
   local cmd = {
-    opts.claude_cmd or "claude",
+    opts.cmd or "claude",
     "-p",
     opts.prompt,
     "--output-format",
@@ -30,24 +32,6 @@ end
 
 local function is_tbl(v)
   return type(v) == "table"
-end
-
----Summarize a tool_use input table into a short single-line string.
-local function input_summary(input)
-  if not is_tbl(input) then
-    return ""
-  end
-  for _, key in ipairs({ "file_path", "path", "pattern", "command", "prompt", "query", "url" }) do
-    local v = input[key]
-    if type(v) == "string" and v ~= "" then
-      local s = v:gsub("%s+", " ")
-      if #s > 60 then
-        s = s:sub(1, 57) .. "..."
-      end
-      return s
-    end
-  end
-  return ""
 end
 
 ---Parse one stream-json line into a normalized event, or nil to skip.
@@ -77,7 +61,7 @@ function M.parse_line(line)
         batch[#batch + 1] = {
           kind = "tool_use",
           tool = block.name or "?",
-          summary = input_summary(block.input),
+          summary = util.input_summary(block.input),
         }
       end
     end
@@ -100,11 +84,7 @@ function M.parse_line(line)
             end
           end
         end
-        text = text:gsub("%s+", " ")
-        if #text > 120 then
-          text = text:sub(1, 117) .. "..."
-        end
-        return { kind = "tool_result", text = text, is_error = block.is_error == true }
+        return { kind = "tool_result", text = util.truncate(text, 120), is_error = block.is_error == true }
       end
     end
     return nil

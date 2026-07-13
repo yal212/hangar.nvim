@@ -44,6 +44,7 @@ lazy.nvim:
 | `:Hangar spawn --yolo <prompt>` | spawn an agent with full tool access (runs sandboxed in its worktree) |
 | `:Hangar spawn --safe <prompt>` | spawn an agent that can edit files but not run shell commands |
 | `:Hangar spawn --model haiku <prompt>` | pick a model per run |
+| `:Hangar spawn --adapter codex <prompt>` | pick an agent CLI per run (`claude_code`, `codex`) |
 | `:Hangar kill <id>` | stop a running agent |
 | `:Hangar clean` | delete worktrees/branches of all finished runs |
 
@@ -61,18 +62,21 @@ opts = { default_permission = "yolo" }
 require("hangar").setup({
   default_permission = nil,  -- "yolo" | "safe" | nil (require an explicit flag per spawn)
   merge = "squash",          -- "squash" | "ff" | "merge"
-  model = nil,               -- default model for spawns, e.g. "haiku"
-  claude_cmd = "claude",     -- path to the Claude Code CLI
+  adapter = "claude_code",   -- default agent CLI for spawns without --adapter
+  model = nil,               -- default model for claude_code spawns, e.g. "haiku"
+  adapters = {               -- per-adapter overrides (all optional)
+    -- codex = { cmd = "/path/to/codex", model = "gpt-5.3-codex" },
+  },
 })
 ```
 
-Lua API: `require("hangar").spawn(prompt, { permission_mode = "bypassPermissions", model = "haiku" })`.
+Lua API: `require("hangar").spawn(prompt, { permission_mode = "bypassPermissions", model = "haiku", adapter = "codex" })`.
 
 ## How it works
 
 `:Hangar spawn` creates `.hangar/worktrees/<id>` on branch `hangar/<id>` (excluded from git status automatically), then runs `claude -p <prompt> --output-format stream-json` there via `vim.system`. Events stream into the run registry and every open UI updates through a `User HangarRunUpdate` autocmd. When a run finishes with uncommitted changes, hangar commits them so the branch is always mergeable. State persists to `stdpath("data")/hangar/runs.json`, so finished runs survive restarting Neovim.
 
-Adapters are a small contract (`build_cmd`, `parse_line`) — see `lua/hangar/adapters/claude_code.lua`. Codex / Gemini / OpenCode adapters are welcome contributions.
+Adapters are a small contract (`name`, `build_cmd`, `parse_line`) — see `lua/hangar/adapters/`. Shipped adapters: **Claude Code** (`claude_code`, the default) and **OpenAI Codex** (`codex`, via `codex exec --json`). Gemini / OpenCode adapters are welcome contributions.
 
 ## Tests
 
@@ -80,8 +84,9 @@ Adapters are a small contract (`build_cmd`, `parse_line`) — see `lua/hangar/ad
 # parser + arg handling (offline, free)
 nvim --headless -l tests/run_tests.lua
 
-# full end-to-end with a real claude run (costs a few cents)
+# full end-to-end with real agent runs (costs a few cents; adapters optional)
 XDG_DATA_HOME=$(mktemp -d) nvim --headless -l tests/run_tests.lua --integration
+XDG_DATA_HOME=$(mktemp -d) nvim --headless -l tests/run_tests.lua --integration codex
 ```
 
 ## License

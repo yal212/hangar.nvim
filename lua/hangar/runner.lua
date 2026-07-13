@@ -164,6 +164,7 @@ end
 ---@class hangar.SpawnOpts
 ---@field permission_mode "acceptEdits"|"bypassPermissions"
 ---@field model string|nil
+---@field adapter string|nil adapter name, defaults to config.adapter
 
 ---Spawn an agent run in a fresh worktree.
 ---@param prompt string
@@ -178,18 +179,31 @@ function M.spawn(prompt, opts)
     return nil, err
   end
 
+  local adapter_name = opts.adapter or config.adapter
+  local adapter, aerr = require("hangar.adapters").get(adapter_name)
+  if not adapter then
+    return nil, aerr
+  end
+  local overrides = config.adapters[adapter.name] or {}
+  local cmd_override = overrides.cmd
+  if adapter.name == "claude_code" and not cmd_override and config.claude_cmd ~= "claude" then
+    cmd_override = config.claude_cmd
+  end
+  -- config.model stays claude-only; other adapters use their per-adapter override
+  local default_model = adapter.name == "claude_code" and config.model or nil
+
   local id = short_id()
   local ok, wt = pcall(worktree.create, root, id)
   if not ok then
     return nil, tostring(wt)
   end
 
-  local adapter = require("hangar.adapters.claude_code")
+  local model = opts.model or overrides.model or default_model
   local cmd = adapter.build_cmd({
     prompt = prompt,
     permission_mode = opts.permission_mode,
-    model = opts.model or config.model,
-    claude_cmd = config.claude_cmd,
+    model = model,
+    cmd = cmd_override,
   })
 
   ---@type hangar.Run
@@ -199,7 +213,7 @@ function M.spawn(prompt, opts)
     status = "running",
     adapter = adapter.name,
     permission_mode = opts.permission_mode,
-    model = opts.model or config.model,
+    model = model,
     root = root,
     worktree = wt.path,
     branch = wt.branch,

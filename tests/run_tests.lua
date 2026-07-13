@@ -2,8 +2,9 @@
 ---
 ---  Parser unit tests only (free, offline):
 ---    nvim --headless -l tests/run_tests.lua
----  Include the real end-to-end run (spawns `claude -p`, costs money):
----    XDG_DATA_HOME=$(mktemp -d) nvim --headless -l tests/run_tests.lua --integration
+---  Include real end-to-end runs (spawns actual agent CLIs, costs money):
+---    XDG_DATA_HOME=$(mktemp -d) nvim --headless -l tests/run_tests.lua --integration [adapter ...]
+---  Adapter names default to claude_code; e.g. `--integration codex opencode`.
 
 local script = arg[0]
 local plugin_root = vim.fn.fnamemodify(script, ":p:h:h")
@@ -57,13 +58,74 @@ local cmd = adapter.build_cmd({ prompt = "p", permission_mode = "bypassPermissio
 check(vim.list_contains(cmd, "stream-json") and vim.list_contains(cmd, "--verbose"), "build_cmd stream flags")
 check(vim.list_contains(cmd, "bypassPermissions") and vim.list_contains(cmd, "haiku"), "build_cmd permission + model")
 
--- ── spawn arg parsing (via the public dispatcher surface) ────────────
+-- ── codex adapter (canned lines captured from a real `codex exec --json` run) ──
+local codex = require("hangar.adapters.codex")
+
+ev = codex.parse_line('{"type":"thread.started","thread_id":"019f593c-b70e-7e50-8fe1-9adc2a2deb22"}')
+check(ev and ev.kind == "init" and ev.session_id == "019f593c-b70e-7e50-8fe1-9adc2a2deb22", "codex: init from thread.started")
+
+check(codex.parse_line('{"type":"turn.started"}') == nil, "codex: turn.started ignored")
+
+ev = codex.parse_line('{"type":"item.completed","item":{"id":"item_0","type":"agent_message","text":"hello hangar"}}')
+check(ev and ev.kind == "text" and ev.text == "hello hangar", "codex: agent_message -> text")
+
+ev = codex.parse_line(
+  '{"type":"item.started","item":{"id":"item_1","type":"command_execution","command":"/bin/zsh -lc \\"printf hi > probe.txt\\"","aggregated_output":"","exit_code":null,"status":"in_progress"}}'
+)
+check(ev and ev.kind == "tool_use" and ev.tool == "shell" and ev.summary:find("printf", 1, true), "codex: command start -> tool_use")
+
+ev = codex.parse_line(
+  '{"type":"item.completed","item":{"id":"item_1","type":"command_execution","command":"c","aggregated_output":"       3 probe.txt\\n","exit_code":0,"status":"completed"}}'
+)
+check(ev and ev.kind == "tool_result" and ev.is_error == false and ev.text:find("probe.txt", 1, true), "codex: command done -> tool_result")
+
+ev = codex.parse_line('{"type":"item.completed","item":{"id":"i","type":"command_execution","command":"c","aggregated_output":"boom","exit_code":1,"status":"failed"}}')
+check(ev and ev.kind == "tool_result" and ev.is_error == true, "codex: failed command -> tool_result error")
+
+ev = codex.parse_line('{"type":"item.completed","item":{"id":"i","type":"file_change","changes":[{"path":"/a/b.lua","kind":"update"}],"status":"completed"}}')
+check(ev and ev.kind == "tool_use" and ev.tool == "edit" and ev.summary:find("b.lua", 1, true), "codex: file_change -> tool_use")
+
+ev = codex.parse_line('{"type":"turn.completed","usage":{"input_tokens":12131,"cached_input_tokens":1920,"output_tokens":7}}')
+check(ev and ev.kind == "result" and ev.is_error == false and ev.cost == nil, "codex: turn.completed -> result, no cost")
+
+ev = codex.parse_line('{"type":"turn.failed","error":{"message":"rate limited"}}')
+check(ev and ev.kind == "result" and ev.is_error == true and ev.text == "rate limited", "codex: turn.failed -> error result")
+
+check(codex.parse_line('{"type":"some_future_event"}') == nil, "codex: ignores unknown event types")
+check(codex.parse_line("not json") == nil, "codex: ignores garbage lines")
+
+cmd = codex.build_cmd({ prompt = "p", permission_mode = "bypassPermissions", model = "gpt-5.3-codex" })
+check(cmd[1] == "codex" and cmd[2] == "exec" and vim.list_contains(cmd, "--json"), "codex: build_cmd shape")
+check(vim.list_contains(cmd, "--dangerously-bypass-approvals-and-sandbox"), "codex: yolo -> bypass sandbox")
+check(vim.list_contains(cmd, "gpt-5.3-codex") and cmd[#cmd] == "p", "codex: model flag + prompt last")
+cmd = codex.build_cmd({ prompt = "p", permission_mode = "acceptEdits" })
+check(vim.list_contains(cmd, "workspace-write"), "codex: safe -> workspace-write sandbox")
+
+-- ── adapter registry ─────────────────────────────────────────────────
+local registry = require("hangar.adapters")
+check(registry.get("claude_code") ~= nil, "registry: resolves claude_code")
+check(registry.get("codex") ~= nil, "registry: resolves codex")
+check(registry.get("no_such_adapter") == nil, "registry: unknown adapter -> nil")
+check(select(2, registry.get("no_such_adapter")):find("available", 1, true) ~= nil, "registry: error lists available")
+check(vim.list_contains(registry.available(), "codex") and not vim.list_contains(registry.available(), "util"), "registry: available() lists adapters only")
+
+-- ── spawn arg parsing ────────────────────────────────────────────────
 local hangar = require("hangar")
 hangar.setup({})
 
--- ── integration test (real claude run) ───────────────────────────────
-if vim.list_contains(arg, "--integration") then
-  io.write("\n-- integration: real claude -p run (this takes a minute) --\n")
+local parsed = hangar._parse_spawn_args({ "--yolo", "--adapter", "codex", "fix", "the", "bug" })
+check(parsed and parsed.adapter == "codex" and parsed.prompt == "fix the bug", "args: --adapter parsed")
+parsed = hangar._parse_spawn_args({ "--yolo", "do it" })
+check(parsed and parsed.adapter == nil, "args: adapter defaults to nil (config decides)")
+local _, perr = hangar._parse_spawn_args({ "--yolo", "--adapter" })
+check(perr and perr:find("--adapter", 1, true), "args: --adapter without value errors")
+
+-- ── integration tests (real agent runs) ──────────────────────────────
+---Fast/cheap model per adapter for e2e runs; nil = the CLI's default.
+local E2E_MODEL = { claude_code = "haiku" }
+
+local function run_e2e(adapter_name)
+  io.write(("\n-- integration: real %s run (this takes a minute) --\n"):format(adapter_name))
   local repo = vim.uv.fs_mkdtemp(vim.uv.os_tmpdir() .. "/hangar-test-XXXXXX")
   sh(repo, { "git", "init", "-b", "main" })
   sh(repo, { "git", "config", "user.email", "test@hangar.nvim" })
@@ -75,43 +137,68 @@ if vim.list_contains(arg, "--integration") then
   sh(repo, { "git", "commit", "-m", "init" })
 
   vim.fn.chdir(repo)
-  hangar.setup({ model = "haiku" })
 
   local run = hangar.spawn(
     "Append the exact line 'hangar-test' to README.md. Make no other changes and do not commit.",
-    { permission_mode = "bypassPermissions" }
+    {
+      permission_mode = "bypassPermissions",
+      adapter = adapter_name,
+      model = E2E_MODEL[adapter_name],
+    }
   )
-  check(run ~= nil, "spawn returns a run")
-  if run then
-    check(vim.uv.fs_stat(run.worktree) ~= nil, "worktree directory created")
-    check(run.branch:match("^hangar/") ~= nil, "branch name")
+  local t = adapter_name .. ": "
+  check(run ~= nil, t .. "spawn returns a run")
+  if not run then
+    return
+  end
+  check(run.adapter == adapter_name, t .. "run records adapter")
+  check(vim.uv.fs_stat(run.worktree) ~= nil, t .. "worktree directory created")
+  check(run.branch:match("^hangar/") ~= nil, t .. "branch name")
 
-    local done = vim.wait(300000, function()
-      return run.status ~= "running"
-    end, 250)
-    check(done, "run finished within timeout")
-    check(run.status == "done", "run status is done (got: " .. run.status .. (run.error and (", err: " .. run.error) or "") .. ")")
-    check(type(run.cost) == "number", "cost parsed from result event")
-    check(type(run.turns) == "number" and run.turns >= 1, "turn count parsed")
-    check(#run.events > 0, "transcript events captured")
+  local done = vim.wait(300000, function()
+    return run.status ~= "running"
+  end, 250)
+  check(done, t .. "run finished within timeout")
+  check(run.status == "done", t .. "run status is done (got: " .. run.status .. (run.error and (", err: " .. run.error) or "") .. ")")
+  check(#run.events > 0, t .. "transcript events captured")
+  if adapter_name == "claude_code" then
+    check(type(run.cost) == "number", t .. "cost parsed from result event")
+    check(type(run.turns) == "number" and run.turns >= 1, t .. "turn count parsed")
+  end
 
-    local worktree = require("hangar.worktree")
-    local files = worktree.changed_files(run)
-    local touched = vim.tbl_map(function(x) return x.path end, files)
-    check(vim.list_contains(touched, "README.md"), "README.md in changed files")
+  local worktree = require("hangar.worktree")
+  local files = worktree.changed_files(run)
+  local touched = vim.tbl_map(function(x) return x.path end, files)
+  check(vim.list_contains(touched, "README.md"), t .. "README.md in changed files")
 
-    local diff = sh(repo, { "git", "diff", run.base .. "..." .. run.branch })
-    check(diff:find("hangar%-test") ~= nil, "branch diff contains the appended line")
+  local diff = sh(repo, { "git", "diff", run.base .. "..." .. run.branch })
+  check(diff:find("hangar%-test") ~= nil, t .. "branch diff contains the appended line")
 
-    local runner = require("hangar.runner")
-    local ok, err = runner.merge(run.id, "squash")
-    check(ok, "squash merge succeeds" .. (err and (" (" .. err .. ")") or ""))
-    local readme = sh(repo, { "cat", "README.md" })
-    check(readme:find("hangar%-test") ~= nil, "merged README contains the line")
+  local runner = require("hangar.runner")
+  local ok, err = runner.merge(run.id, "squash")
+  check(ok, t .. "squash merge succeeds" .. (err and (" (" .. err .. ")") or ""))
+  local readme = sh(repo, { "cat", "README.md" })
+  check(readme:find("hangar%-test") ~= nil, t .. "merged README contains the line")
 
-    local wt_list = sh(repo, { "git", "worktree", "list" })
-    check(select(2, wt_list:gsub("\n", "")) == 0, "no orphan worktrees after merge")
-    check(run.status == "merged", "run marked merged")
+  local wt_list = sh(repo, { "git", "worktree", "list" })
+  check(select(2, wt_list:gsub("\n", "")) == 0, t .. "no orphan worktrees after merge")
+  check(run.status == "merged", t .. "run marked merged")
+end
+
+local integration_at
+for i, a in ipairs(arg) do
+  if a == "--integration" then
+    integration_at = i
+    break
+  end
+end
+if integration_at then
+  local names = vim.list_slice(arg, integration_at + 1)
+  if #names == 0 then
+    names = { "claude_code" }
+  end
+  for _, name in ipairs(names) do
+    run_e2e(name)
   end
 end
 

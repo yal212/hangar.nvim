@@ -8,7 +8,10 @@ M.config = {
   default_permission = nil, ---@type "yolo"|"safe"|nil
   merge = "squash", ---@type "squash"|"ff"|"merge"
   model = nil, ---@type string|nil  passed to `claude --model`
-  claude_cmd = "claude",
+  claude_cmd = "claude", ---deprecated alias for adapters.claude_code.cmd
+  adapter = "claude_code", ---@type string  default adapter for spawns without --adapter
+  ---Per-adapter overrides: `adapters = { codex = { cmd = "...", model = "..." } }`
+  adapters = {}, ---@type table<string, { cmd?: string, model?: string }>
 }
 
 ---@param opts hangar.Config|nil
@@ -18,20 +21,25 @@ end
 
 local PERMISSION_MODES = { yolo = "bypassPermissions", safe = "acceptEdits" }
 
----Parse `:Hangar spawn` args: flags (--yolo/--safe/--model m) then prompt.
----@return table|nil parsed { prompt, permission_mode, model }
+---Parse `:Hangar spawn` args: flags (--yolo/--safe/--model m/--adapter a) then prompt.
+---@return table|nil parsed { prompt, permission_mode, model, adapter }
 ---@return string|nil err
 local function parse_spawn_args(fargs)
-  local permission, model
+  local permission, model, adapter
   local i = 1
   while i <= #fargs do
     local a = fargs[i]
     if a == "--yolo" or a == "--safe" then
       permission = PERMISSION_MODES[a:sub(3)]
-    elseif a == "--model" then
-      model = fargs[i + 1]
-      if not model then
-        return nil, "--model needs a value"
+    elseif a == "--model" or a == "--adapter" then
+      local value = fargs[i + 1]
+      if not value then
+        return nil, a .. " needs a value"
+      end
+      if a == "--model" then
+        model = value
+      else
+        adapter = value
       end
       i = i + 1
     else
@@ -49,10 +57,12 @@ local function parse_spawn_args(fargs)
   end
   local prompt = table.concat(vim.list_slice(fargs, i), " ")
   if vim.trim(prompt) == "" then
-    return nil, "usage: :Hangar spawn [--yolo|--safe] [--model <m>] <prompt>"
+    return nil, "usage: :Hangar spawn [--yolo|--safe] [--adapter <a>] [--model <m>] <prompt>"
   end
-  return { prompt = prompt, permission_mode = permission, model = model }
+  return { prompt = prompt, permission_mode = permission, model = model, adapter = adapter }
 end
+
+M._parse_spawn_args = parse_spawn_args -- exposed for tests
 
 ---@param prompt string
 ---@param opts table|nil { permission_mode?, model? }  Lua API entry point
@@ -91,7 +101,11 @@ function M._command(cmd)
       vim.notify("[hangar] " .. err, vim.log.levels.ERROR)
       return
     end
-    M.spawn(parsed.prompt, { permission_mode = parsed.permission_mode, model = parsed.model })
+    M.spawn(parsed.prompt, {
+      permission_mode = parsed.permission_mode,
+      model = parsed.model,
+      adapter = parsed.adapter,
+    })
   elseif sub == "kill" then
     local ok, err = require("hangar.runner").kill(fargs[2])
     if not ok then
@@ -119,9 +133,14 @@ function M._complete(arg_lead, cmd_line)
     end, { "spawn", "kill", "clean" })
   end
   if args[2] == "spawn" then
+    if args[#args] == "--adapter" or (arg_lead ~= "" and args[#args - 1] == "--adapter") then
+      return vim.tbl_filter(function(s)
+        return vim.startswith(s, arg_lead)
+      end, require("hangar.adapters").available())
+    end
     return vim.tbl_filter(function(s)
       return vim.startswith(s, arg_lead)
-    end, { "--yolo", "--safe", "--model" })
+    end, { "--yolo", "--safe", "--model", "--adapter" })
   end
   if args[2] == "kill" then
     local runner = require("hangar.runner")
