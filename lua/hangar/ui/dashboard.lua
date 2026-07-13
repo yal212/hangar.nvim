@@ -124,7 +124,7 @@ function M.render(refresh_files)
   end
 
   lines[#lines + 1] = ""
-  local hint = "  <CR> transcript  d diff  m merge  x discard  K kill  R resume  s spawn  q quit"
+  local hint = "  <CR> transcript  d diff  m merge  x discard  i iterate  K kill  R resume  s spawn  q quit"
   lines[#lines + 1] = hint
   marks[#marks + 1] = { line = #lines - 1, col = 0, end_col = #hint, hl = "HangarDim" }
 
@@ -251,6 +251,24 @@ local function action_kill()
   end
 end
 
+local function action_iterate()
+  local run = run_under_cursor()
+  if not run then
+    return
+  end
+  vim.ui.input({ prompt = ("Feedback for %s: "):format(run.id) }, function(feedback)
+    if not feedback or vim.trim(feedback) == "" then
+      return
+    end
+    local new_run, err = runner.iterate(run.id, feedback)
+    if new_run then
+      vim.notify(("[hangar] iterating on %s as run %s"):format(run.id, new_run.id))
+    else
+      notify_err(err)
+    end
+  end)
+end
+
 local function action_resume()
   local run = run_under_cursor()
   if not run then
@@ -330,6 +348,7 @@ function M.open()
   map("x", action_discard)
   map("K", action_kill)
   map("R", action_resume)
+  map("i", action_iterate)
   map("s", action_spawn)
   map("r", function()
     M.render(true)

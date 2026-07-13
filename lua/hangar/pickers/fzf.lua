@@ -1,5 +1,5 @@
 ---fzf-lua entry point: `require("hangar.pickers.fzf").runs()`.
----<CR> transcript · <C-d> review/diff · <C-x> discard.
+---<CR> transcript · <C-d> review/diff · <C-e> iterate · <C-x> discard.
 local M = {}
 
 function M.runs(opts)
@@ -41,6 +41,12 @@ function M.runs(opts)
           local run = run_of(selected)
           if run then
             hangar_pickers.open_review(run.id)
+          end
+        end,
+        ["ctrl-e"] = function(selected)
+          local run = run_of(selected)
+          if run then
+            hangar_pickers.iterate(run.id)
           end
         end,
         ["ctrl-x"] = function(selected)

@@ -108,7 +108,7 @@ require("lualine").setup({
 
 ### Pickers (optional)
 
-Fuzzy-find runs by prompt, status, or id as an alternative to the dashboard — `<CR>` transcript, `<C-d>` review/diff, `<C-x>` discard. The core plugin stays dependency-free; these load only if the host picker is installed.
+Fuzzy-find runs by prompt, status, or id as an alternative to the dashboard — `<CR>` transcript, `<C-d>` review/diff, `<C-e>` iterate with feedback, `<C-x>` discard. The core plugin stays dependency-free; these load only if the host picker is installed.
 
 ```vim
 " telescope.nvim:  :lua require('telescope').load_extension('hangar')  then

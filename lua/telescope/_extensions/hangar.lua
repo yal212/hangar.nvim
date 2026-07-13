@@ -1,5 +1,5 @@
 ---Telescope extension: `:Telescope hangar runs`.
----<CR> transcript · <C-d> review/diff · <C-x> discard.
+---<CR> transcript · <C-d> review/diff · <C-e> iterate · <C-x> discard.
 local ok, telescope = pcall(require, "telescope")
 if not ok then
   error("hangar.nvim picker requires telescope.nvim")
@@ -53,6 +53,12 @@ local function runs_picker(opts)
           local run = selected_run(prompt_bufnr, true)
           if run then
             hangar_pickers.open_review(run.id)
+          end
+        end)
+        map({ "i", "n" }, "<C-e>", function()
+          local run = selected_run(prompt_bufnr, true)
+          if run then
+            hangar_pickers.iterate(run.id)
           end
         end)
         map({ "i", "n" }, "<C-x>", function()

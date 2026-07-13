@@ -518,6 +518,116 @@ function M.resume(id)
   return true
 end
 
+---How an iteration continues a run: "resume" keeps the agent session and
+---worktree so context and edits carry over; "fresh" starts over with the
+---feedback folded into the original prompt.
+---@return "resume"|"fresh"
+local function iterate_mode(run, adapter)
+  if
+    type(adapter.build_resume_cmd) == "function"
+    and run.session_id
+    and run.worktree
+    and vim.uv.fs_stat(run.worktree)
+  then
+    return "resume"
+  end
+  return "fresh"
+end
+
+M._iterate_mode = iterate_mode -- exposed for tests
+
+---Prompt for a fresh-spawn iteration (adapters without a resumable session).
+function M._iterate_prompt(run, feedback)
+  return run.prompt .. "\n\nPrevious attempt feedback: " .. feedback
+end
+
+---Iterate on a finished run with follow-up feedback. Resumes the agent
+---session in the original worktree when the adapter supports it — the new
+---run takes ownership of the worktree and branch, so the previous attempt's
+---edits carry forward and the old record keeps only its transcript.
+---Otherwise falls back to a fresh spawn with the feedback appended to the
+---prompt. Both runs share a group, so the dashboard shows the lineage.
+---@param id string
+---@param feedback string
+---@return hangar.Run|nil run the follow-up run
+---@return string|nil err
+function M.iterate(id, feedback)
+  M.load()
+  local run = M.runs[id]
+  if not run then
+    return nil, "no such run: " .. tostring(id)
+  end
+  if run.status == "running" or run.status == "queued" or run.status == "detached" then
+    return nil, "run " .. id .. " is still " .. run.status
+  end
+  if vim.trim(feedback or "") == "" then
+    return nil, "feedback required"
+  end
+  local adapter, aerr = require("hangar.adapters").get(run.adapter)
+  if not adapter then
+    return nil, aerr
+  end
+
+  -- shared group renders the iteration lineage in the dashboard
+  if not run.group then
+    run.group = "i" .. run.id
+    run.attempt = 1
+  end
+  local attempt = 1
+  for _, r in pairs(M.runs) do
+    if r.group == run.group then
+      attempt = math.max(attempt, (r.attempt or 1) + 1)
+    end
+  end
+
+  if iterate_mode(run, adapter) == "fresh" then
+    return M.spawn(M._iterate_prompt(run, feedback), {
+      permission_mode = run.permission_mode,
+      model = run.model,
+      adapter = run.adapter,
+      group = run.group,
+      attempt = attempt,
+    })
+  end
+
+  local new_id = short_id()
+  ---@type hangar.Run
+  local new_run = {
+    id = new_id,
+    prompt = feedback,
+    status = "running", -- start_job below re-stamps this + started
+    adapter = run.adapter,
+    permission_mode = run.permission_mode,
+    model = run.model,
+    root = run.root,
+    worktree = run.worktree,
+    branch = run.branch,
+    base = run.base,
+    session_id = run.session_id,
+    started = os.time(),
+    events = {},
+    group = run.group,
+    attempt = attempt,
+  }
+  -- ownership moves: discarding the superseded record must not delete the
+  -- worktree/branch the follow-up run is working on
+  run.worktree, run.branch = nil, nil
+  M.runs[new_id] = new_run
+
+  local cmd = adapter.build_resume_cmd({
+    session_id = new_run.session_id,
+    prompt = feedback,
+    permission_mode = new_run.permission_mode,
+    model = new_run.model,
+    cmd = cmd_override_for(new_run.adapter),
+    cwd = new_run.worktree,
+  })
+  start_job(new_run, adapter, cmd)
+  M.save()
+  notify_update(new_id)
+  return new_run
+end
+
 ---Forget a run and delete its worktree + branch.
 function M.discard(id)
   local run = M.runs[id]

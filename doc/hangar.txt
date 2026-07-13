@@ -75,6 +75,13 @@ files, prompt. Updates live. Keys:
   m       merge the run's branch into your current branch (confirm first);
           for a best-of-N attempt, offers to discard the sibling attempts
   x       discard: delete worktree + branch, forget the run (confirm first)
+  i       iterate: prompt for feedback and spawn a follow-up run. Where the
+          adapter supports resume (|hangar-adapters|), the follow-up
+          continues the agent session in the same worktree — prior edits
+          and context carry over, and the superseded run keeps only its
+          transcript. Otherwise a fresh run starts with the feedback
+          appended to the original prompt. The runs share a group, so the
+          dashboard shows the iteration lineage.
   K       kill a running agent (also stops queued and detached runs)
   R       resume an orphaned run's agent session in its original worktree
           (adapter support required, see |hangar-adapters|)
@@ -196,7 +203,8 @@ plugin just to render an empty string):
 9. PICKERS                                                    *hangar-pickers*
 
 Optional fuzzy pickers over the run registry; the core stays
-dependency-free. Actions: <CR> transcript, <C-d> review, <C-x> discard.
+dependency-free. Actions: <CR> transcript, <C-d> review, <C-e> iterate
+with feedback, <C-x> discard.
 
 telescope.nvim: >vim
     :lua require("telescope").load_extension("hangar")

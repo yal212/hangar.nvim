@@ -44,6 +44,20 @@ function M.open_review(id)
   require("hangar.ui.review").open(id)
 end
 
+function M.iterate(id)
+  vim.ui.input({ prompt = ("Feedback for %s: "):format(id) }, function(feedback)
+    if not feedback or vim.trim(feedback) == "" then
+      return
+    end
+    local run, err = require("hangar.runner").iterate(id, feedback)
+    if run then
+      vim.notify(("[hangar] iterating on %s as run %s"):format(id, run.id))
+    else
+      vim.notify("[hangar] " .. err, vim.log.levels.ERROR)
+    end
+  end)
+end
+
 function M.discard(id)
   local choice = vim.fn.confirm(("Discard %s? Worktree and branch are deleted."):format(id), "&Yes\n&No", 2)
   if choice ~= 1 then
