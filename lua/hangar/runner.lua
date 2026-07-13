@@ -204,6 +204,10 @@ function M.spawn(prompt, opts)
   if not adapter then
     return nil, aerr
   end
+  local unsupported = adapter.unsupported_modes and adapter.unsupported_modes[opts.permission_mode]
+  if unsupported then
+    return nil, unsupported
+  end
   local overrides = config.adapters[adapter.name] or {}
   local cmd_override = overrides.cmd
   if adapter.name == "claude_code" and not cmd_override and config.claude_cmd ~= "claude" then

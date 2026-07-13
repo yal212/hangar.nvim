@@ -7,6 +7,12 @@ local util = require("hangar.adapters.util")
 
 local M = { name = "opencode" }
 
+-- opencode has no headless equivalent of "edits only": without --auto it
+-- waits on interactive permission prompts that a spawned run can never answer
+M.unsupported_modes = {
+  acceptEdits = "opencode has no headless safe mode; spawn with --yolo",
+}
+
 ---@param opts hangar.SpawnCmdOpts
 ---@return string[]
 function M.build_cmd(opts)
@@ -21,6 +27,7 @@ function M.build_cmd(opts)
     -- spawn cwd reliably); pin it or the agent escapes the worktree
     vim.list_extend(cmd, { "--dir", opts.cwd })
   end
+  -- acceptEdits is rejected at spawn (see unsupported_modes above)
   if opts.permission_mode == "bypassPermissions" then
     cmd[#cmd + 1] = "--auto"
   end

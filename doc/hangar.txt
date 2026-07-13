@@ -132,11 +132,18 @@ Shipped adapters and their permission mappings:
   adapter      --yolo                        --safe
   -----------  ----------------------------  ---------------------------
   claude_code  --permission-mode             --permission-mode
-               bypassPermissions             acceptEdits
+               bypassPermissions             acceptEdits (edits only)
   codex        --dangerously-bypass-         --sandbox workspace-write
-               approvals-and-sandbox
+               approvals-and-sandbox         (sandboxed shell allowed)
   gemini       --approval-mode yolo          --approval-mode auto_edit
-  opencode     --auto                        (default permissions)
+  opencode     --auto                        unsupported: spawn fails fast
+
+Safe mode is live-verified end-to-end for claude_code and codex; the
+gemini mapping follows the CLI docs but is not live-verified. opencode
+has no headless safe mode — without `--auto` it blocks forever on
+permission prompts, so hangar rejects the spawn with an error instead.
+An adapter can declare such gaps in an optional `unsupported_modes`
+table (permission mode -> reason); spawn fails fast with the reason.
 
 ==============================================================================
 8. STATUSLINE                                              *hangar-statusline*

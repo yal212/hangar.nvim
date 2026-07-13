@@ -1,5 +1,7 @@
 ---Adapter registry: resolve adapter modules by name and validate the contract.
 ---Contract: `name` string, `build_cmd(opts) -> argv`, `parse_line(line) -> event|nil`.
+---Optional: `unsupported_modes` table<permission_mode, reason> — spawn fails fast
+---with the reason instead of launching a run that would hang.
 local M = {}
 
 ---@param name string

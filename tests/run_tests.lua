@@ -5,6 +5,7 @@
 ---  Include real end-to-end runs (spawns actual agent CLIs, costs money):
 ---    XDG_DATA_HOME=$(mktemp -d) nvim --headless -l tests/run_tests.lua --integration [adapter ...]
 ---  Adapter names default to claude_code; e.g. `--integration codex opencode`.
+---  Append ":safe" to an adapter name to run it with acceptEdits, e.g. `claude_code:safe`.
 
 local script = arg[0]
 local plugin_root = vim.fn.fnamemodify(script, ":p:h:h")
@@ -60,6 +61,8 @@ check(adapter.parse_line("") == nil, "ignores blank lines")
 local cmd = adapter.build_cmd({ prompt = "p", permission_mode = "bypassPermissions", model = "haiku" })
 check(vim.list_contains(cmd, "stream-json") and vim.list_contains(cmd, "--verbose"), "build_cmd stream flags")
 check(vim.list_contains(cmd, "bypassPermissions") and vim.list_contains(cmd, "haiku"), "build_cmd permission + model")
+cmd = adapter.build_cmd({ prompt = "p", permission_mode = "acceptEdits" })
+check(vim.list_contains(cmd, "--permission-mode") and vim.list_contains(cmd, "acceptEdits"), "safe -> acceptEdits")
 
 -- ── codex adapter (canned lines captured from a real `codex exec --json` run) ──
 local codex = require("hangar.adapters.codex")
@@ -237,8 +240,10 @@ check(
   vim.list_contains(cmd, "--auto") and vim.list_contains(cmd, "anthropic/claude-haiku-4-5") and cmd[#cmd] == "p",
   "opencode: yolo -> --auto, model, prompt last"
 )
-cmd = opencode.build_cmd({ prompt = "p", permission_mode = "acceptEdits" })
-check(not vim.list_contains(cmd, "--auto"), "opencode: safe -> no --auto")
+check(
+  type(opencode.unsupported_modes) == "table" and type(opencode.unsupported_modes.acceptEdits) == "string",
+  "opencode: declares acceptEdits unsupported"
+)
 
 -- ── partial result accumulation in the runner ────────────────────────
 do
@@ -273,6 +278,20 @@ check(
   vim.list_contains(registry.available(), "codex") and not vim.list_contains(registry.available(), "util"),
   "registry: available() lists adapters only"
 )
+
+-- ── unsupported permission modes fail fast at spawn ──────────────────
+do
+  local repo = vim.uv.fs_mkdtemp(vim.uv.os_tmpdir() .. "/hangar-safe-XXXXXX")
+  sh(repo, { "git", "init", "-b", "main" })
+  local prev = vim.uv.cwd()
+  vim.fn.chdir(repo)
+  local runner = require("hangar.runner")
+  local run, serr = runner.spawn("p", { permission_mode = "acceptEdits", adapter = "opencode" })
+  check(run == nil and serr and serr:find("yolo", 1, true) ~= nil, "spawn: opencode --safe fails fast")
+  local wt_list = sh(repo, { "git", "worktree", "list" })
+  check(select(2, wt_list:gsub("\n", "")) == 0, "spawn: fail-fast leaves no worktree behind")
+  vim.fn.chdir(prev)
+end
 
 -- ── spawn arg parsing ────────────────────────────────────────────────
 local hangar = require("hangar")
@@ -334,8 +353,11 @@ end
 ---Fast/cheap model per adapter for e2e runs; nil = the CLI's default.
 local E2E_MODEL = { claude_code = "haiku" }
 
-local function run_e2e(adapter_name)
-  io.write(("\n-- integration: real %s run (this takes a minute) --\n"):format(adapter_name))
+---@param spec string adapter name, optionally with a ":safe" suffix to run acceptEdits
+local function run_e2e(spec)
+  local adapter_name, mode = spec:match("^([^:]+):?(.*)$")
+  local permission = mode == "safe" and "acceptEdits" or "bypassPermissions"
+  io.write(("\n-- integration: real %s run (this takes a minute) --\n"):format(spec))
   local repo = vim.uv.fs_mkdtemp(vim.uv.os_tmpdir() .. "/hangar-test-XXXXXX")
   sh(repo, { "git", "init", "-b", "main" })
   sh(repo, { "git", "config", "user.email", "test@hangar.nvim" })
@@ -350,11 +372,11 @@ local function run_e2e(adapter_name)
 
   local run =
     hangar.spawn("Append the exact line 'hangar-test' to README.md. Make no other changes and do not commit.", {
-      permission_mode = "bypassPermissions",
+      permission_mode = permission,
       adapter = adapter_name,
       model = E2E_MODEL[adapter_name],
     })
-  local t = adapter_name .. ": "
+  local t = spec .. ": "
   check(run ~= nil, t .. "spawn returns a run")
   if not run then
     return

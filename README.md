@@ -120,7 +120,14 @@ Fuzzy-find runs by prompt, status, or id as an alternative to the dashboard — 
 
 Adapters are a small contract (`name`, `build_cmd`, `parse_line`) — see `lua/hangar/adapters/`. Shipped adapters: **Claude Code** (`claude_code`, the default), **OpenAI Codex** (`codex`, via `codex exec --json`), **Gemini CLI** (`gemini`, via `gemini -p -o stream-json`), and **OpenCode** (`opencode`, via `opencode run --format json`).
 
-`--yolo` / `--safe` map onto each CLI's own permission system: claude `bypassPermissions` / `acceptEdits`, codex `--dangerously-bypass-approvals-and-sandbox` / `--sandbox workspace-write` (sandboxed shell allowed), gemini `--approval-mode yolo` / `auto_edit`, opencode `--auto` / default.
+`--yolo` / `--safe` map onto each CLI's own permission system:
+
+| adapter | `--yolo` | `--safe` | safe mode verified |
+| --- | --- | --- | --- |
+| `claude_code` | `--permission-mode bypassPermissions` | `--permission-mode acceptEdits` (edits only) | ✅ live e2e |
+| `codex` | `--dangerously-bypass-approvals-and-sandbox` | `--sandbox workspace-write` — weaker than claude's: sandboxed shell still allowed | ✅ live e2e |
+| `gemini` | `--approval-mode yolo` | `--approval-mode auto_edit` | mapped per CLI docs, not live-verified |
+| `opencode` | `--auto` | **unsupported** — spawn fails fast (headless opencode would hang on permission prompts) | ✅ fails fast |
 
 ## Tests
 
