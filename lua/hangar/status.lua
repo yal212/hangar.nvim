@@ -1,4 +1,4 @@
----Fleet status for statuslines: `require("hangar").status()` -> "hangar 2● 1✓".
+---Fleet status for statuslines: `require("hangar").status()` -> "hangar 2 ● 1 ✓".
 ---Cheap enough to call on every redraw: results are cached and only
 ---recomputed when a run changes (User HangarRunUpdate) or the cwd moves.
 local M = {}
@@ -65,13 +65,13 @@ function M.text()
   local c = M.counts() or { running = 0, done = 0, failed = 0 }
   local parts = {}
   if c.running > 0 then
-    parts[#parts + 1] = c.running .. "●"
+    parts[#parts + 1] = c.running .. " ●"
   end
   if c.done > 0 then
-    parts[#parts + 1] = c.done .. "✓"
+    parts[#parts + 1] = c.done .. " ✓"
   end
   if c.failed > 0 then
-    parts[#parts + 1] = c.failed .. "✗"
+    parts[#parts + 1] = c.failed .. " ✗"
   end
   local text = #parts > 0 and ("hangar " .. table.concat(parts, " ")) or ""
   text_cache[root] = text

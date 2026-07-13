@@ -78,7 +78,7 @@ Lua API: `require("hangar").spawn(prompt, { permission_mode = "bypassPermissions
 
 ### Statusline
 
-`require("hangar").status()` returns `"hangar 2● 1✓"` (running / awaiting review / `✗` failed), or `""` when idle — cached, so it's safe on every redraw. lualine:
+`require("hangar").status()` returns `"hangar 2 ● 1 ✓"` (running / awaiting review / `✗` failed), or `""` when idle — cached, so it's safe on every redraw. lualine:
 
 ```lua
 require("lualine").setup({
