@@ -1,0 +1,122 @@
+#!/usr/bin/env bash
+# Stub agent CLI for the demo recording (assets/demo.tape).
+#
+# It speaks the same argv and the same `--output-format stream-json` protocol as
+# the real `claude` binary, so hangar's real claude_code adapter, runner,
+# dashboard, transcript and diff/merge paths all run unmodified — only the
+# thinking is canned. Wired in with:
+#
+#   setup({ adapters = { claude_code = { cmd = ".../assets/demo/fake-claude" } } })
+#
+# Scenarios live in assets/demo/scenes/<name>/; every file in a scenario is
+# applied to the worktree one at a time, behind its own Edit tool call, so the
+# dashboard's "files" column climbs while the run is live. The stub never
+# commits — hangar's own auto-commit-on-finish does that.
+
+set -u
+
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCENES="$HERE/scenes"
+
+prompt=""
+model="sonnet"
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -p) prompt="${2-}"; shift 2 ;;
+    --model|-m) model="${2-}"; shift 2 ;;
+    --output-format|--permission-mode|--append-system-prompt|--resume) shift 2 ;;
+    *) shift ;;
+  esac
+done
+
+json_escape() {
+  printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g'
+}
+
+emit() { printf '%s\n' "$1"; }
+
+say() {
+  emit "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"$(json_escape "$1")\"}]}}"
+}
+
+tool_use() { # name, input-json
+  emit "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"name\":\"$1\",\"input\":$2}]}}"
+}
+
+tool_result() {
+  emit "{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"content\":\"$(json_escape "$1")\",\"is_error\":false}]}}"
+}
+
+# Claim the next unused variant of a scenario family, so the three attempts of a
+# `--n 3` fleet each get a different diff. mkdir is the atomic claim.
+claim_variant() {
+  claims="${XDG_STATE_HOME:-${TMPDIR:-/tmp}}/hangar-demo-claims"
+  mkdir -p "$claims"
+  i=1
+  while [ "$i" -le 9 ]; do
+    if mkdir "$claims/$1-$i" 2>/dev/null; then
+      printf '%s-%s' "$1" "$i"
+      return 0
+    fi
+    i=$((i + 1))
+  done
+  printf '%s-1' "$1"
+}
+
+case "$prompt" in
+  *"dark mode"*)
+    scene="$(claim_variant darkmode)"
+    ;;
+  *)
+    scene="auth"
+    ;;
+esac
+
+# Per-scene pacing (seconds between beats) and headline numbers. Staggering the
+# finishes is what makes the dashboard look alive in the recording.
+case "$scene" in
+  auth)       tick=0.9; turns=6;  cost=0.0381; open="Reading the failing test to see what makes it flaky." ;;
+  darkmode-1) tick=1.4; turns=8;  cost=0.0524; open="Simplest route: drive it off prefers-color-scheme." ;;
+  darkmode-2) tick=0.7; turns=5;  cost=0.0297; open="Adding a data-theme attribute plus a toggle in the panel." ;;
+  darkmode-3) tick=1.5; turns=11; cost=0.0736; open="Pulling theme handling into its own module first." ;;
+  *)          tick=1.0; turns=5;  cost=0.0250; open="Working." ;;
+esac
+
+start=$(date +%s)
+emit "{\"type\":\"system\",\"subtype\":\"init\",\"model\":\"$(json_escape "$model")\",\"session_id\":\"demo-$scene\",\"cwd\":\"$(json_escape "$PWD")\",\"tools\":[\"Read\",\"Edit\",\"Bash\"]}"
+
+sleep "$tick"
+say "$open"
+
+sleep "$tick"
+tool_use Bash '{"command":"rg -n \"theme|auth\" src test","description":"survey the code"}'
+sleep 0.4
+tool_result "src/settings.js   src/theme.css   test/auth.test.js"
+
+for file in $(cd "$SCENES/$scene" && find . -type f | sed 's|^\./||' | sort); do
+  sleep "$tick"
+  tool_use Edit "{\"file_path\":\"$(json_escape "$file")\"}"
+  mkdir -p "$(dirname "$file")"
+  cp "$SCENES/$scene/$file" "$file"
+  sleep 0.4
+  tool_result "Applied edit to $file"
+done
+
+sleep "$tick"
+tool_use Bash '{"command":"npm test","description":"run the suite"}'
+sleep 0.8
+tool_result "Test Suites: 1 passed   Tests: 3 passed, 3 total"
+
+case "$scene" in
+  auth)       summary="Removed the 50ms timer race: the queue is now flushed synchronously, so the suite is deterministic." ;;
+  darkmode-1) summary="Dark mode now follows the OS via prefers-color-scheme — no new UI, no persistence." ;;
+  darkmode-2) summary="Added a data-theme attribute, a Dark mode checkbox, and localStorage persistence." ;;
+  darkmode-3) summary="Extracted src/theme.js (OS default + explicit override) and wired a toggle button into the panel." ;;
+  *)          summary="Done." ;;
+esac
+
+sleep "$tick"
+say "$summary"
+
+duration=$((($(date +%s) - start) * 1000))
+emit "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"total_cost_usd\":$cost,\"num_turns\":$turns,\"duration_ms\":$duration,\"result\":\"$(json_escape "$summary")\"}"
