@@ -8,7 +8,7 @@ Spawn headless agent runs — [Claude Code](https://claude.com/claude-code) (def
 
 *Think: lazygit for coding agents.*
 
-<!-- demo GIF goes here -->
+![hangar.nvim: spawn a fleet of agents, watch them work, diff, merge the winner](assets/demo.gif)
 
 ## Why
 
@@ -147,6 +147,8 @@ XDG_DATA_HOME=$(mktemp -d) nvim --headless -l tests/run_tests.lua --integration 
 `--integration gemini` additionally needs working Gemini CLI auth.
 
 ## Contributing
+
+The demo GIF is scripted — `vhs assets/demo.tape` re-records it from the repo root. It drives the real plugin against a throwaway fixture repo, with `assets/demo/fake-claude` standing in for the agent CLI, so re-recording is deterministic and costs nothing.
 
 New adapters are the most useful contribution: implement the three-field contract in `lua/hangar/adapters/` (capture real CLI output first and write the parser against it), add canned-line tests to `tests/run_tests.lua`, and verify a real run end-to-end with `--integration <name>`. The offline suite must pass for any change.
 
