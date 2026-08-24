@@ -13,6 +13,19 @@ function M.truncate(s, max)
   return s
 end
 
+-- first match wins: the most specific identifier each CLI puts in a tool call
+local SUMMARY_KEYS = {
+  "file_path",
+  "filePath",
+  "path",
+  "pattern",
+  "command",
+  "prompt",
+  "query",
+  "url",
+  "patchText",
+}
+
 ---Summarize a tool_use input table into a short single-line string.
 ---@param input any
 ---@return string
@@ -20,7 +33,7 @@ function M.input_summary(input)
   if type(input) ~= "table" then
     return ""
   end
-  for _, key in ipairs({ "file_path", "filePath", "path", "pattern", "command", "prompt", "query", "url", "patchText" }) do
+  for _, key in ipairs(SUMMARY_KEYS) do
     local v = input[key]
     if type(v) == "string" and v ~= "" then
       return M.truncate(v, 60)
