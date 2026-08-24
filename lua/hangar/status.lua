@@ -25,6 +25,9 @@ end
 ---Repo root for the current cwd, resolved through git once then cached.
 local function current_root()
   local cwd = vim.uv.cwd()
+  if not cwd then -- no cwd (deleted directory): nothing to resolve, and a nil key would throw
+    return nil
+  end
   local root = root_cache[cwd]
   if root == nil then
     root = require("hangar.worktree").root(cwd) or false

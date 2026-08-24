@@ -11,6 +11,10 @@ local script = arg[0]
 local plugin_root = vim.fn.fnamemodify(script, ":p:h:h")
 vim.opt.rtp:prepend(plugin_root)
 
+-- opt-in coverage (CI): HANGAR_COVERAGE=1 with luacov on package.path.
+-- Must start before any hangar module is required, or nothing is instrumented.
+local coverage = vim.env.HANGAR_COVERAGE == "1" and pcall(require, "luacov")
+
 -- never touch the user's real run registry, even without XDG_DATA_HOME set
 require("hangar.runner")._set_state_dir(vim.uv.fs_mkdtemp(vim.uv.os_tmpdir() .. "/hangar-state-XXXXXX"))
 
@@ -287,7 +291,7 @@ end
 do
   local runner = require("hangar.runner")
   local hangar = require("hangar")
-  local repo = vim.uv.fs_mkdtemp(vim.uv.os_tmpdir() .. "/hangar-notify-XXXXXX")
+  local repo = assert(vim.uv.fs_mkdtemp(vim.uv.os_tmpdir() .. "/hangar-notify-XXXXXX"))
   sh(repo, { "git", "init", "-b", "main" })
   sh(repo, { "git", "config", "user.email", "test@hangar.nvim" })
   sh(repo, { "git", "config", "user.name", "hangar-test" })
@@ -315,6 +319,7 @@ do
   hangar.setup({ notify = false })
   local called = false
   local orig_notify = vim.notify
+  ---@diagnostic disable-next-line: duplicate-set-field
   vim.notify = function()
     called = true
   end
@@ -325,6 +330,7 @@ do
 
   hangar.setup({ notify = true })
   local msg, lvl
+  ---@diagnostic disable-next-line: duplicate-set-field
   vim.notify = function(m, l)
     msg, lvl = m, l
   end
@@ -338,6 +344,7 @@ do
   )
   check(lvl == vim.log.levels.INFO, "notify: done notifies at INFO")
 
+  ---@diagnostic disable-next-line: duplicate-set-field
   vim.notify = function(m, l)
     msg, lvl = m, l
   end
@@ -348,10 +355,11 @@ do
   check(msg and msg:find("exploded", 1, true) and lvl == vim.log.levels.ERROR, "notify: failure carries the error")
 
   -- suppressed while the dashboard already shows the change live
-  local prev = vim.uv.cwd()
+  local prev = assert(vim.uv.cwd())
   vim.fn.chdir(repo)
   require("hangar.ui.dashboard").open()
   check(require("hangar.ui.dashboard").is_open(), "notify: dashboard opens headless")
+  ---@diagnostic disable-next-line: duplicate-set-field
   vim.notify = function()
     called = true
   end
@@ -386,12 +394,12 @@ do
   end
   local runner = require("hangar.runner")
   local hangar = require("hangar")
-  local repo = vim.uv.fs_mkdtemp(vim.uv.os_tmpdir() .. "/hangar-queue-XXXXXX")
+  local repo = assert(vim.uv.fs_mkdtemp(vim.uv.os_tmpdir() .. "/hangar-queue-XXXXXX"))
   sh(repo, { "git", "init", "-b", "main" })
   sh(repo, { "git", "config", "user.email", "test@hangar.nvim" })
   sh(repo, { "git", "config", "user.name", "hangar-test" })
   sh(repo, { "git", "commit", "--allow-empty", "-m", "init" })
-  local prev = vim.uv.cwd()
+  local prev = assert(vim.uv.cwd())
   vim.fn.chdir(repo)
 
   hangar.setup({ max_concurrent = 1, notify = false })
@@ -410,7 +418,7 @@ do
   check(dok and runner.get(r3.id) == nil, "queue: killed queued run can be discarded")
 
   local mok, merr = runner.merge(r2.id)
-  check(mok == false and merr:find("not started", 1, true) ~= nil, "queue: merge rejects a queued run")
+  check(mok == false and merr ~= nil and merr:find("not started", 1, true) ~= nil, "queue: merge rejects a queued run")
 
   runner.kill(r1.id)
   local promoted = vim.wait(10000, function()
@@ -456,26 +464,29 @@ do
   run = { id = "d2", root = root, status = "detached", pid = proc3.pid, started = 2, events = {}, prompt = "p" }
   runner.runs.d2 = run
   local mok, merr = runner.merge("d2")
-  check(mok == false and merr:find("running", 1, true) ~= nil, "detached: merge blocked while alive")
+  check(mok == false and merr ~= nil and merr:find("running", 1, true) ~= nil, "detached: merge blocked while alive")
   local dok, derr = runner.discard("d2")
-  check(dok == false and derr:find("kill", 1, true) ~= nil, "detached: discard blocked while alive")
+  check(dok == false and derr ~= nil and derr:find("kill", 1, true) ~= nil, "detached: discard blocked while alive")
   check(runner.kill("d2") == true and run.status == "killed", "detached: kill signals the pid directly")
   proc3:wait()
 
   local rok, rerr = runner.resume("d2")
-  check(rok == false and rerr:find("killed", 1, true) ~= nil, "resume: only orphaned runs resume")
+  check(rok == false and rerr ~= nil and rerr:find("killed", 1, true) ~= nil, "resume: only orphaned runs resume")
   run = { id = "d3", root = root, status = "orphaned", adapter = "claude_code", started = 3, events = {}, prompt = "p" }
   runner.runs.d3 = run
   rok, rerr = runner.resume("d3")
-  check(rok == false and rerr:find("session id", 1, true) ~= nil, "resume: needs a captured session id")
+  check(rok == false and rerr ~= nil and rerr:find("session id", 1, true) ~= nil, "resume: needs a captured session id")
   run.session_id = "sess"
   run.worktree = "/no/such/dir"
   rok, rerr = runner.resume("d3")
-  check(rok == false and rerr:find("worktree", 1, true) ~= nil, "resume: needs the worktree on disk")
+  check(rok == false and rerr ~= nil and rerr:find("worktree", 1, true) ~= nil, "resume: needs the worktree on disk")
   run = { id = "d4", root = root, status = "orphaned", adapter = "fake", started = 4, events = {}, prompt = "p" }
   runner.runs.d4 = run
   rok, rerr = runner.resume("d4")
-  check(rok == false and rerr:find("does not support", 1, true) ~= nil, "resume: adapter without resume errors")
+  check(
+    rok == false and rerr ~= nil and rerr:find("does not support", 1, true) ~= nil,
+    "resume: adapter without resume errors"
+  )
 
   for _, id in ipairs({ "d1", "d2", "d3", "d4" }) do
     runner.runs[id] = nil
@@ -490,7 +501,7 @@ do
     "iterate: fresh prompt folds in feedback"
   )
 
-  local tmp = vim.uv.fs_mkdtemp(vim.uv.os_tmpdir() .. "/hangar-iter-XXXXXX")
+  local tmp = assert(vim.uv.fs_mkdtemp(vim.uv.os_tmpdir() .. "/hangar-iter-XXXXXX"))
   local plain = { build_cmd = function() end, parse_line = function() end }
   local resumable = vim.tbl_extend("force", plain, { build_resume_cmd = function() end })
   check(
@@ -504,12 +515,12 @@ do
     "iterate: fresh when the worktree is gone"
   )
 
-  local repo = vim.uv.fs_mkdtemp(vim.uv.os_tmpdir() .. "/hangar-iterrepo-XXXXXX")
+  local repo = assert(vim.uv.fs_mkdtemp(vim.uv.os_tmpdir() .. "/hangar-iterrepo-XXXXXX"))
   sh(repo, { "git", "init", "-b", "main" })
   sh(repo, { "git", "config", "user.email", "test@hangar.nvim" })
   sh(repo, { "git", "config", "user.name", "hangar-test" })
   sh(repo, { "git", "commit", "--allow-empty", "-m", "init" })
-  local prev = vim.uv.cwd()
+  local prev = assert(vim.uv.cwd())
   vim.fn.chdir(repo)
   local opts = { permission_mode = "bypassPermissions", adapter = "fake" }
 
@@ -576,7 +587,7 @@ do
     f:close()
   end
   local function mkrepo()
-    local repo = vim.uv.fs_mkdtemp(vim.uv.os_tmpdir() .. "/hangar-conflict-XXXXXX")
+    local repo = assert(vim.uv.fs_mkdtemp(vim.uv.os_tmpdir() .. "/hangar-conflict-XXXXXX"))
     sh(repo, { "git", "init", "-b", "main" })
     sh(repo, { "git", "config", "user.email", "test@hangar.nvim" })
     sh(repo, { "git", "config", "user.name", "hangar-test" })
@@ -603,7 +614,10 @@ do
   check(sh(repo, { "git", "status", "--porcelain" }) == "", "conflict: root pristine after aborted merge")
   local sha_before = sh(wt.path, { "git", "rev-parse", "HEAD" })
   local rok, rerr = worktree.rebase_onto_head(run)
-  check(rok == false and rerr:find("conflict", 1, true) ~= nil, "conflict: rebase aborts on real conflicts")
+  check(
+    rok == false and rerr ~= nil and rerr:find("conflict", 1, true) ~= nil,
+    "conflict: rebase aborts on real conflicts"
+  )
   check(sh(wt.path, { "git", "rev-parse", "HEAD" }) == sha_before, "conflict: branch untouched by aborted rebase")
 
   -- non-overlapping divergence with ff: rebase then retry succeeds
@@ -664,13 +678,13 @@ check(
 
 -- ── unsupported permission modes fail fast at spawn ──────────────────
 do
-  local repo = vim.uv.fs_mkdtemp(vim.uv.os_tmpdir() .. "/hangar-safe-XXXXXX")
+  local repo = assert(vim.uv.fs_mkdtemp(vim.uv.os_tmpdir() .. "/hangar-safe-XXXXXX"))
   sh(repo, { "git", "init", "-b", "main" })
-  local prev = vim.uv.cwd()
+  local prev = assert(vim.uv.cwd())
   vim.fn.chdir(repo)
   local runner = require("hangar.runner")
   local run, serr = runner.spawn("p", { permission_mode = "acceptEdits", adapter = "opencode" })
-  check(run == nil and serr and serr:find("yolo", 1, true) ~= nil, "spawn: opencode --safe fails fast")
+  check(run == nil and serr and serr ~= nil and serr:find("yolo", 1, true) ~= nil, "spawn: opencode --safe fails fast")
   local wt_list = sh(repo, { "git", "worktree", "list" })
   check(select(2, wt_list:gsub("\n", "")) == 0, "spawn: fail-fast leaves no worktree behind")
   vim.fn.chdir(prev)
@@ -685,14 +699,14 @@ check(parsed and parsed.adapter == "codex" and parsed.prompt == "fix the bug", "
 parsed = hangar._parse_spawn_args({ "--yolo", "do it" })
 check(parsed and parsed.adapter == nil, "args: adapter defaults to nil (config decides)")
 local _, perr = hangar._parse_spawn_args({ "--yolo", "--adapter" })
-check(perr and perr:find("--adapter", 1, true), "args: --adapter without value errors")
+check(perr and perr ~= nil and perr:find("--adapter", 1, true), "args: --adapter without value errors")
 
 parsed = hangar._parse_spawn_args({ "--yolo", "--n", "3", "fix", "it" })
 check(parsed and parsed.n == 3 and parsed.prompt == "fix it", "args: --n parsed")
 parsed = hangar._parse_spawn_args({ "--yolo", "plain prompt" })
 check(parsed and parsed.n == nil, "args: n defaults to nil (single run)")
 _, perr = hangar._parse_spawn_args({ "--yolo", "--n", "three", "x" })
-check(perr and perr:find("whole number", 1, true), "args: --n rejects non-numbers")
+check(perr and perr ~= nil and perr:find("whole number", 1, true), "args: --n rejects non-numbers")
 _, perr = hangar._parse_spawn_args({ "--yolo", "--n", "0", "x" })
 check(perr, "args: --n rejects 0")
 _, perr = hangar._parse_spawn_args({ "--yolo", "--n", "99", "x" })
@@ -700,9 +714,9 @@ check(perr, "args: --n rejects out-of-range counts")
 
 -- ── statusline component ─────────────────────────────────────────────
 do
-  local repo = vim.uv.fs_mkdtemp(vim.uv.os_tmpdir() .. "/hangar-status-XXXXXX")
+  local repo = assert(vim.uv.fs_mkdtemp(vim.uv.os_tmpdir() .. "/hangar-status-XXXXXX"))
   sh(repo, { "git", "init", "-b", "main" })
-  local prev = vim.uv.cwd()
+  local prev = assert(vim.uv.cwd())
   vim.fn.chdir(repo)
   local status = require("hangar.status")
   local runner = require("hangar.runner")
@@ -736,9 +750,9 @@ end
 do
   local runner = require("hangar.runner")
   local dashboard = require("hangar.ui.dashboard")
-  local repo = vim.uv.fs_mkdtemp(vim.uv.os_tmpdir() .. "/hangar-dash-XXXXXX")
+  local repo = assert(vim.uv.fs_mkdtemp(vim.uv.os_tmpdir() .. "/hangar-dash-XXXXXX"))
   sh(repo, { "git", "init", "-b", "main" })
-  local prev = vim.uv.cwd()
+  local prev = assert(vim.uv.cwd())
   vim.fn.chdir(repo)
   local root = require("hangar.worktree").root()
 
@@ -803,7 +817,7 @@ local function run_e2e(spec)
   local adapter_name, mode = spec:match("^([^:]+):?(.*)$")
   local permission = mode == "safe" and "acceptEdits" or "bypassPermissions"
   io.write(("\n-- integration: real %s run (this takes a minute) --\n"):format(spec))
-  local repo = vim.uv.fs_mkdtemp(vim.uv.os_tmpdir() .. "/hangar-test-XXXXXX")
+  local repo = assert(vim.uv.fs_mkdtemp(vim.uv.os_tmpdir() .. "/hangar-test-XXXXXX"))
   sh(repo, { "git", "init", "-b", "main" })
   sh(repo, { "git", "config", "user.email", "test@hangar.nvim" })
   sh(repo, { "git", "config", "user.name", "hangar-test" })
@@ -887,4 +901,12 @@ if integration_at then
 end
 
 io.write(failed == 0 and "\nALL PASS\n" or ("\n" .. failed .. " FAILURES\n"))
+
+-- os.exit skips luacov's atexit hook, which would leave the stats file empty
+if coverage then
+  pcall(function()
+    require("luacov.runner").shutdown()
+  end)
+end
+
 os.exit(failed == 0 and 0 or 1)
