@@ -5,16 +5,29 @@ on:
     branches: [main]
   pull_request:
 
+# the workflow only reads the repo; stylua-action uses the token for release lookup
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # keep in step with the floor documented in the README and health.lua
+  LUALS_VERSION: 3.19.1
+
 jobs:
   test:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        neovim: [stable, nightly]
+        # v0.10.0 is the documented minimum — test it, don't just claim it
+        neovim: [v0.10.0, stable, nightly]
     steps:
-      - uses: actions/checkout@v4
-      - uses: rhysd/action-setup-vim@v1
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: rhysd/action-setup-vim@febef33995d6649302e9d88dda81e071b68f16a7 # v1.6.1
         with:
           neovim: true
           version: ${{ matrix.neovim }}
@@ -24,9 +37,73 @@ jobs:
   style:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: JohnnyMorganz/stylua-action@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: JohnnyMorganz/stylua-action@479972f01e665acfcba96ada452c36608bdbbb5e # v4.1.0
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           version: v2.5.2
           args: --check lua/ plugin/ tests/
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Install luacheck
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends lua-check
+
+      - name: luacheck
+        run: luacheck lua plugin tests
+
+      # .luarc.json points workspace.library at $VIMRUNTIME/lua, so the type
+      # check needs a Neovim runtime present and that variable exported
+      - uses: rhysd/action-setup-vim@febef33995d6649302e9d88dda81e071b68f16a7 # v1.6.1
+        with:
+          neovim: true
+          version: stable
+
+      - name: Install lua-language-server
+        run: |
+          curl -fsSL -o lls.tar.gz \
+            "https://github.com/LuaLS/lua-language-server/releases/download/${LUALS_VERSION}/lua-language-server-${LUALS_VERSION}-linux-x64.tar.gz"
+          mkdir -p "$RUNNER_TEMP/lls"
+          tar -xzf lls.tar.gz -C "$RUNNER_TEMP/lls"
+          echo "$RUNNER_TEMP/lls/bin" >> "$GITHUB_PATH"
+
+      - name: lua-language-server --check
+        run: |
+          export VIMRUNTIME="$(nvim --headless -c 'echo $VIMRUNTIME' -c 'quit' 2>&1)"
+          echo "VIMRUNTIME=$VIMRUNTIME"
+          lua-language-server --check . --checklevel=Warning --logpath="$RUNNER_TEMP/lls-log"
+
+  coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: rhysd/action-setup-vim@febef33995d6649302e9d88dda81e071b68f16a7 # v1.6.1
+        with:
+          neovim: true
+          version: stable
+
+      - name: Install luacov
+        run: |
+          sudo apt-get update && sudo apt-get install -y --no-install-recommends luarocks
+          sudo luarocks install luacov
+
+      - name: Run test suite with coverage
+        run: |
+          eval "$(luarocks path)"
+          HANGAR_COVERAGE=1 nvim --headless -l tests/run_tests.lua
+
+      - name: Report coverage
+        run: |
+          eval "$(luarocks path)"
+          luacov
+          {
+            echo '## Test coverage'
+            echo
+            echo '```'
+            sed -n '/^Summary$/,$p' luacov.report.out
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          sed -n '/^Summary$/,$p' luacov.report.out

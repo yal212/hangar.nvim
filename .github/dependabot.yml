@@ -1,0 +1,9 @@
+version: 2
+updates:
+  # actions are pinned to commit SHAs in ci.yml; this is what keeps them fresh
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: "ci"

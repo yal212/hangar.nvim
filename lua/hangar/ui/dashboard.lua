@@ -11,6 +11,15 @@ local icons = require("hangar.ui.icons")
 local define_highlights = require("hangar.ui.hl").define
 
 ---Dashboard state for the single open instance.
+---@class hangar.DashboardState
+---@field buf integer|nil
+---@field win integer|nil
+---@field root string|nil
+---@field timer uv.uv_timer_t|nil
+---@field line_runs table<integer, string>
+---@field files_cache table<string, integer>
+---@field sort "recent"|"status"|"cost"
+---@field hide_merged boolean
 local state = {
   buf = nil,
   win = nil,

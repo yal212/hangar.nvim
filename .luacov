@@ -1,0 +1,10 @@
+-- luacov config. Coverage is opt-in: HANGAR_COVERAGE=1 nvim --headless -l tests/run_tests.lua
+return {
+  -- paths arrive absolute (nvim requires by full path), so these are
+  -- unanchored substring patterns, not repo-relative prefixes
+  include = { "lua/hangar/" },
+  exclude = { "/tests/", "/assets/", "luacov" },
+  statsfile = "luacov.stats.out",
+  reportfile = "luacov.report.out",
+  deleteafterreport = false,
+}
