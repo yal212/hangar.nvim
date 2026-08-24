@@ -38,6 +38,14 @@ lazy.nvim:
 }
 ```
 
+To pin instead of tracking `main`:
+
+```lua
+{ "yal212/hangar.nvim", version = "^0.1", cmd = "Hangar", opts = {} }
+```
+
+While 0.x, `setup()` option names and the adapter contract are stable within a minor version; breaking changes bump the minor. `:checkhealth hangar` reports the installed version, and [CHANGELOG.md](CHANGELOG.md) records what changed.
+
 ## Usage
 
 | Command | |
@@ -56,7 +64,7 @@ Dashboard keys: `<CR>` transcript · `d` review/diff · `m` merge · `x` discard
 
 With `--n`, the dashboard groups the attempts under one shared prompt line; compare their diffs with `d`, and merging one offers to discard its siblings.
 
-Every spawn needs an explicit `--yolo` or `--safe` — headless agents can't answer permission prompts, so you choose the blast radius per run. If you always want one mode:
+Every spawn needs an explicit `--yolo` or `--safe` — headless agents can't answer permission prompts, so you choose the blast radius per run. `--yolo` disables every confirmation the agent would otherwise ask for; what that does and does not contain is written up in the [threat model](SECURITY.md#threat-model). If you always want one mode:
 
 ```lua
 opts = { default_permission = "yolo" }
@@ -124,7 +132,7 @@ Fuzzy-find runs by prompt, status, or id as an alternative to the dashboard — 
 
 Adapters are a small contract (`name`, `build_cmd`, `parse_line`) — see `lua/hangar/adapters/`. Shipped adapters: **Claude Code** (`claude_code`, the default), **OpenAI Codex** (`codex`, via `codex exec --json`), **Gemini CLI** (`gemini`, via `gemini -p -o stream-json`), and **OpenCode** (`opencode`, via `opencode run --format json`).
 
-`--yolo` / `--safe` map onto each CLI's own permission system:
+`--yolo` / `--safe` map onto each CLI's own permission system (and see the [threat model](SECURITY.md#threat-model) for what isolation hangar does and doesn't provide):
 
 | adapter | `--yolo` | `--safe` | safe mode verified |
 | --- | --- | --- | --- |
@@ -148,9 +156,7 @@ XDG_DATA_HOME=$(mktemp -d) nvim --headless -l tests/run_tests.lua --integration 
 
 ## Contributing
 
-The demo GIF is scripted — `vhs assets/demo.tape` re-records it from the repo root. It drives the real plugin against a throwaway fixture repo, with `assets/demo/fake-claude` standing in for the agent CLI, so re-recording is deterministic and costs nothing.
-
-New adapters are the most useful contribution: implement the three-field contract in `lua/hangar/adapters/` (capture real CLI output first and write the parser against it), add canned-line tests to `tests/run_tests.lua`, and verify a real run end-to-end with `--integration <name>`. The offline suite must pass for any change.
+See [CONTRIBUTING.md](CONTRIBUTING.md) — dev setup, tests, style, and a walkthrough for **adding an adapter**, which is the most useful contribution. New adapters implement the three-field contract in `lua/hangar/adapters/`; the guide covers the event kinds a parser must emit and how to verify one against the real CLI.
 
 ## License
 

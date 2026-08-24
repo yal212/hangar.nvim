@@ -1,0 +1,33 @@
+name: Feature request
+description: Suggest a capability or change in behaviour.
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What's the problem?
+      description: What are you trying to do that hangar makes hard or impossible today?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behaviour
+      description: What should happen instead? Include the command, flag, or config shape if you have one in mind.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Workarounds you've tried, or other designs you rejected and why.
+    validations:
+      required: false
+
+  - type: markdown
+    attributes:
+      value: |
+        Asking for support for a new agent CLI? Use the **Adapter request** template instead —
+        it asks for the specific things writing an adapter needs.

@@ -1,0 +1,20 @@
+# Matches stylua.toml (2-space indent, 120 columns) and applies it beyond Lua.
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+indent_style = space
+indent_size = 2
+insert_final_newline = true
+trim_trailing_whitespace = true
+max_line_length = 120
+
+[*.md]
+# markdown uses two trailing spaces as a hard line break
+trim_trailing_whitespace = false
+
+[doc/*.txt]
+# vimdoc alignment is column-sensitive — leave it exactly as written
+trim_trailing_whitespace = false
+max_line_length = off
