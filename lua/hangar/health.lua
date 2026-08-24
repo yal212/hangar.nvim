@@ -16,6 +16,8 @@ end
 function M.check()
   health.start("hangar.nvim")
 
+  health.ok(("hangar.nvim %s"):format(require("hangar").version))
+
   -- Neovim version (vim.system, autocmd data)
   if vim.fn.has("nvim-0.10") == 1 then
     health.ok("Neovim >= 0.10")

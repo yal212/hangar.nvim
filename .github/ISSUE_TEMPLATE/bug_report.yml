@@ -1,0 +1,95 @@
+name: Bug report
+description: Something in hangar.nvim doesn't work the way it's documented.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. `:checkhealth hangar` collects most of what's asked for below —
+        run it first and paste the output.
+
+  - type: input
+    id: nvim-version
+    attributes:
+      label: Neovim version
+      description: First line of `nvim --version`.
+      placeholder: NVIM v0.11.2
+    validations:
+      required: true
+
+  - type: dropdown
+    id: adapter
+    attributes:
+      label: Adapter
+      description: Which agent CLI was the run using?
+      options:
+        - claude_code
+        - codex
+        - gemini
+        - opencode
+        - not adapter-specific / not sure
+    validations:
+      required: true
+
+  - type: input
+    id: cli-version
+    attributes:
+      label: Agent CLI version
+      description: e.g. `claude --version`, `codex --version`.
+    validations:
+      required: false
+
+  - type: textarea
+    id: checkhealth
+    attributes:
+      label: ":checkhealth hangar output"
+      description: Paste the whole `hangar.nvim` section.
+      render: text
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: The exact `:Hangar` command(s), and what the repo looked like.
+      placeholder: |
+        1. cd into a git repo with commits
+        2. :Hangar spawn --yolo fix the flaky auth test
+        3. open the dashboard, press ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected vs actual
+    validations:
+      required: true
+
+  - type: textarea
+    id: config
+    attributes:
+      label: setup() config
+      description: Your `require("hangar").setup({ ... })` options, if any.
+      render: lua
+    validations:
+      required: false
+
+  - type: input
+    id: os
+    attributes:
+      label: OS
+      placeholder: macOS 15.5 / Ubuntu 24.04
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: worktree
+    attributes:
+      label: Context
+      options:
+        - label: The repo I ran this in is itself a git worktree (not a plain clone)
+          required: false
+        - label: I can reproduce this after removing my other plugins
+          required: false
