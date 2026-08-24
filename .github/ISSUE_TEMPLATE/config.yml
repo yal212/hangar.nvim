@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Usage question
+    url: https://github.com/yal212/hangar.nvim#usage
+    about: Check the README first — commands, flags, config, and the adapter permission table.
+  - name: Setup trouble
+    url: https://github.com/yal212/hangar.nvim#install
+    about: Run `:checkhealth hangar` — it diagnoses most install problems on its own.

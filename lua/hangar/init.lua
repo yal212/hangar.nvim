@@ -1,6 +1,8 @@
 ---hangar.nvim — run a fleet of coding agents in parallel git worktrees.
 local M = {}
 
+M.version = "0.1.0"
+
 ---@class hangar.Config
 M.config = {
   ---Default permission mode for spawns without an explicit --yolo/--safe flag.
