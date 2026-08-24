@@ -1,0 +1,69 @@
+name: Adapter request
+description: Ask for support for another coding-agent CLI.
+labels: ["enhancement", "adapter"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        An adapter is a small three-field contract (`name`, `build_cmd`, `parse_line`) — see
+        [CONTRIBUTING.md](../blob/main/CONTRIBUTING.md#adding-an-adapter). The fields below are
+        exactly what writing one requires, so filling them in is most of the work.
+
+  - type: input
+    id: cli
+    attributes:
+      label: CLI name and install command
+      placeholder: "acme-agent — npm i -g @acme/agent"
+    validations:
+      required: true
+
+  - type: input
+    id: docs
+    attributes:
+      label: Link to its CLI documentation
+    validations:
+      required: false
+
+  - type: textarea
+    id: invocation
+    attributes:
+      label: Headless / streaming invocation
+      description: >
+        The exact command that runs one prompt non-interactively and streams structured
+        (ideally JSON-per-line) output. hangar never runs an interactive TUI.
+      render: shell
+      placeholder: acme-agent run --prompt "..." --output-format stream-json
+    validations:
+      required: true
+
+  - type: textarea
+    id: sample
+    attributes:
+      label: Sample output
+      description: >
+        A real capture from that command — a dozen lines is plenty, but include the first
+        (session/init) and last (result/cost) lines, since those drive the dashboard.
+      render: text
+    validations:
+      required: true
+
+  - type: textarea
+    id: permissions
+    attributes:
+      label: Permission / approval flags
+      description: >
+        How does the CLI express "full tool access, no prompts" (hangar's `--yolo`) and
+        "edits only" (`--safe`)? If it has no non-interactive safe mode, say so — hangar fails
+        fast in that case rather than hanging (see `opencode`).
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: help
+    attributes:
+      label: Contribution
+      options:
+        - label: I'm willing to write the adapter and open a PR
+          required: false
+        - label: I can test it against the real CLI (I have an account/credentials)
+          required: false
