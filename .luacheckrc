@@ -7,8 +7,7 @@ globals = { "vim" }
 
 max_line_length = 120 -- matches stylua.toml and .editorconfig
 
-files["tests/run_tests.lua"] = {
-  -- canned CLI output is pasted verbatim as single-line JSON fixtures;
-  -- wrapping them would stop them matching what the CLIs actually emit
-  max_line_length = false,
-}
+-- canned CLI output is pasted verbatim as single-line JSON fixtures; wrapping
+-- them would stop them matching what the CLIs actually emit
+files["tests/spec/*_spec.lua"] = { max_line_length = false }
+files["tests/integration/*.lua"] = { max_line_length = false }
