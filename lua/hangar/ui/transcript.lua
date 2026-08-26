@@ -39,7 +39,11 @@ end
 local open_bufs = {}
 
 local function render_all(buf, run)
-  local lines = { ("prompt: %s"):format(run.prompt), "" }
+  -- the prompt is a one-line header, and nvim_buf_set_lines rejects a line
+  -- containing a newline — which an iterated run's prompt always has (see
+  -- runner._iterate_prompt). The dashboard and the pickers collapse it the
+  -- same way; only assistant prose is deliberately rendered across lines.
+  local lines = { ("prompt: %s"):format((run.prompt:gsub("%s+", " "))), "" }
   local marks = { { line = 0, hl = "HangarDim" } }
   for _, ev in ipairs(run.events) do
     local evl, hl = event_lines(ev)
