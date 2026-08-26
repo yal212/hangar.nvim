@@ -5,7 +5,7 @@ local health = vim.health
 
 local function version_of(exe)
   local ok, res = pcall(function()
-    return vim.system({ exe, "--version" }, { text = true }):wait(10000)
+    return vim.system({ exe, "--version" }, { text = true }):wait(5000)
   end)
   if not ok or res.code ~= 0 then
     return nil
@@ -51,7 +51,10 @@ function M.check()
       local is_default = name == config.adapter
       local label = is_default and (name .. " (default adapter)") or name
       if vim.fn.executable(exe) == 1 then
-        health.ok(("%s: `%s` found%s"):format(label, exe, version_of(exe) and (" — " .. version_of(exe)) or ""))
+        -- one probe per adapter: version_of spawns a process, so calling it twice
+        -- (once to test, once for the value) doubled :checkhealth's worst-case wait
+        local ver = version_of(exe)
+        health.ok(("%s: `%s` found%s"):format(label, exe, ver and (" — " .. ver) or ""))
       elseif is_default then
         health.error(
           ("%s: `%s` not found on PATH"):format(label, exe),
