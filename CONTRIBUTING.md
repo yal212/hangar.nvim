@@ -85,7 +85,7 @@ make fmt        # stylua, in place
 make lint       # stylua --check (stylua.toml), luacheck (.luacheckrc), shellcheck
 make typecheck  # lua-language-server, uses .luarc.json
 make docs       # asserts the docs still match the code (see below)
-make hooks      # optional: install a pre-commit hook that runs `make lint`
+make hooks      # optional: install the git hooks (see "Commits and PRs")
 ```
 
 CI invokes these same targets, so a green `make check` locally means a green CI.
@@ -108,6 +108,10 @@ deliberately checks only these mechanical facts — prose is never checked.
 - Update `doc/hangar.txt` alongside user-facing changes — the README and the vimdoc are expected
   to agree.
 - The PR template's checklist is the whole review bar; run it before pushing.
+- No tool-attribution links in commit messages or PR bodies: a `Claude-Session:` trailer or a
+  `https://claude.ai/code/session_...` URL resolves only inside one contributor's local editor,
+  so it is noise here. `make hooks` installs a `commit-msg` hook that strips them; PR bodies are
+  on you. A `Co-Authored-By:` trailer is the right way to credit a tool or a pairing partner.
 
 ## Adding an adapter
 

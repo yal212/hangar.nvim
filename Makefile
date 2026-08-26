@@ -45,6 +45,8 @@ coverage: ## Test suite with luacov report
 	eval "$$(luarocks path)" && HANGAR_COVERAGE=1 $(NVIM) --headless -l tests/run_tests.lua && luacov \
 		&& sed -n '/^Summary$$/,$$p' luacov.report.out
 
-hooks: ## Install the pre-commit hook into .git/hooks
+hooks: ## Install the git hooks into .git/hooks
 	install -m 755 scripts/hooks/pre-commit .git/hooks/pre-commit
+	install -m 755 scripts/hooks/commit-msg .git/hooks/commit-msg
 	@echo "installed .git/hooks/pre-commit (runs 'make lint')"
+	@echo "installed .git/hooks/commit-msg (strips Claude-Session: trailers)"

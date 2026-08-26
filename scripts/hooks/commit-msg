@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# Commit-msg hook: strips `Claude-Session:` trailers, which point at a local
+# Claude Code session and mean nothing to anyone else. Silent by design — it
+# cannot be forgotten and never fails a commit. Install with `make hooks`;
+# skip once with `git commit --no-verify`.
+set -euo pipefail
+
+msg_file=$1
+grep -q '^Claude-Session: ' "$msg_file" || exit 0
+
+tmp=$(mktemp)
+trap 'rm -f "$tmp"' EXIT
+# Drop the trailer lines, then collapse the blank lines they leave behind.
+grep -v '^Claude-Session: ' "$msg_file" | awk '
+  /^[[:space:]]*$/ { blanks++; next }
+  { while (blanks-- > 0) print ""; blanks = 0; print }
+' > "$tmp"
+cat "$tmp" > "$msg_file"
