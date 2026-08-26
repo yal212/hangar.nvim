@@ -36,11 +36,8 @@ end
 ---@param line string
 ---@return table|nil event
 function M.parse_line(line)
-  if line == "" then
-    return nil
-  end
-  local ok, obj = pcall(vim.json.decode, line)
-  if not ok or type(obj) ~= "table" then
+  local obj = util.decode_line(line)
+  if not obj then
     return nil
   end
 
