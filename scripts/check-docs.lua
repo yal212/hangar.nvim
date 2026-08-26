@@ -43,10 +43,62 @@ if latest then
   )
 end
 
+local init_src = read("lua/hangar/init.lua")
+
+-- The option list is taken from SCHEMA, not from vim.tbl_keys(hangar.config):
+-- default_permission, model and max_concurrent all default to nil, so they are
+-- absent from the runtime table and every check below used to skip them.
+local options = vim.tbl_keys(hangar._SCHEMA)
+table.sort(options)
+
 -- 2. every config key is documented in both the README and the vimdoc
-for _, key in ipairs(vim.tbl_keys(hangar.config)) do
+for _, key in ipairs(options) do
   want(readme:find(key, 1, true) ~= nil, ("config key %q is not mentioned in README.md"):format(key))
   want(vimdoc:find(key, 1, true) ~= nil, ("config key %q is not mentioned in doc/hangar.txt"):format(key))
+end
+
+-- 2a. SCHEMA and the M.config literal describe the same options. Compared
+-- against the source text rather than the table, for the same nil-default
+-- reason: a key whose default is nil is invisible at runtime.
+local config_block = init_src:match("\nM%.config = {\n(.-)\n}\n")
+want(config_block ~= nil, "could not locate the M.config table literal in lua/hangar/init.lua")
+local declared = {}
+-- only the literal's own keys: two-space indent at the start of a line, which
+-- skips both the `---` prose above each option and the example tables inside it
+for line in vim.gsplit(config_block or "", "\n", { plain = true }) do
+  local key = line:match("^  ([%w_]+) = ")
+  if key then
+    declared[key] = true
+  end
+end
+for _, key in ipairs(options) do
+  want(declared[key], ("option %q is in SCHEMA but not in M.config"):format(key))
+end
+for key in pairs(declared) do
+  want(hangar._SCHEMA[key], ("option %q is in M.config but not in SCHEMA, so setup() rejects it"):format(key))
+end
+
+-- 2b. every option is declared as an @field on BOTH annotation classes.
+-- lua-language-server attaches types to a class through @field only, so an
+-- option added to M.config without one silently drops out of setup()
+-- completion and type checking — which is how issue #20 happened.
+---@param class string
+---@return table<string, true>
+local function fields_of(class)
+  local literal = class:gsub("%%.", "%%%%.") -- the dot in "hangar.Config" is a pattern wildcard
+  local block = init_src:match("---@class " .. literal .. "\n(.-)\n%s*\n")
+  local names = {}
+  for name in (block or ""):gmatch("---@field ([%w_]+)") do
+    names[name] = true
+  end
+  return names
+end
+for _, class in ipairs({ "hangar.Config", "hangar.Opts" }) do
+  local fields = fields_of(class)
+  want(next(fields) ~= nil, ("could not parse any @field entries for %s in lua/hangar/init.lua"):format(class))
+  for _, key in ipairs(options) do
+    want(fields[key], ("config key %q has no `---@field` entry on %s"):format(key, class))
+  end
 end
 
 -- 3. every shipped adapter is listed in both
@@ -77,7 +129,7 @@ for ref in vimdoc:gmatch("|(hangar[%w%-%.]*)|") do
 end
 
 -- 6. the setup() schema and the real config table describe the same options
-for _, key in ipairs(vim.tbl_keys(hangar.config)) do
+for _, key in ipairs(options) do
   want(
     #hangar._validate({ [key] = hangar.config[key] }) == 0,
     ("config key %q is rejected by setup() validation"):format(key)

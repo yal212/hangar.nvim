@@ -5,23 +5,48 @@ local M = {}
 
 M.version = "0.1.0"
 
+---Resolved configuration. `M.config` is this shape after `setup()` has merged
+---the user's options in; every field is present, though several may be nil.
 ---@class hangar.Config
+---@field default_permission "yolo"|"safe"|nil permission mode for spawns with no --yolo/--safe flag
+---@field merge "squash"|"ff"|"merge" strategy used when merging a run's branch back
+---@field model string|nil model passed to the agent CLI, e.g. `claude --model`
+---@field claude_cmd string deprecated alias for adapters.claude_code.cmd; removed in 0.3.0
+---@field adapter string default adapter for spawns with no --adapter flag
+---@field adapters table<string, { cmd?: string, model?: string }> per-adapter cmd/model overrides
+---@field notify boolean|fun(run: hangar.Run) true: vim.notify; false: silent; function: called with the run
+---@field max_concurrent integer|nil max simultaneous agent processes across all repos; nil = unlimited
+
+---What `setup()` accepts: the same options as |hangar.Config|, all optional.
+---Kept separate so a partial table is not a missing-fields error at every
+---call site — which is how everyone actually calls setup().
+---@class hangar.Opts
+---@field default_permission? "yolo"|"safe"
+---@field merge? "squash"|"ff"|"merge"
+---@field model? string
+---@field claude_cmd? string
+---@field adapter? string
+---@field adapters? table<string, { cmd?: string, model?: string }>
+---@field notify? boolean|fun(run: hangar.Run)
+---@field max_concurrent? integer
+
+---@type hangar.Config
 M.config = {
   ---Default permission mode for spawns without an explicit --yolo/--safe flag.
   ---nil (default) means every spawn must pass one; "yolo" or "safe" opt in.
-  default_permission = nil, ---@type "yolo"|"safe"|nil
-  merge = "squash", ---@type "squash"|"ff"|"merge"
-  model = nil, ---@type string|nil  passed to `claude --model`
+  default_permission = nil,
+  merge = "squash",
+  model = nil, ---passed to `claude --model`
   claude_cmd = "claude", ---deprecated alias for adapters.claude_code.cmd
-  adapter = "claude_code", ---@type string  default adapter for spawns without --adapter
+  adapter = "claude_code", ---default adapter for spawns without --adapter
   ---Per-adapter overrides: `adapters = { codex = { cmd = "...", model = "..." } }`
-  adapters = {}, ---@type table<string, { cmd?: string, model?: string }>
+  adapters = {},
   ---Notify when a run finishes (done/failed) and the dashboard is closed.
   ---true: vim.notify; false: silent; function: called with the run instead.
-  notify = true, ---@type boolean|fun(run: hangar.Run)
+  notify = true,
   ---Max simultaneously running agent processes (across all repos); extra
   ---spawns park as "queued" and start as slots free up. nil = unlimited.
-  max_concurrent = nil, ---@type integer|nil
+  max_concurrent = nil,
 }
 
 ---Accepted shape per option. `types` is checked with type(); `values` (when
@@ -87,9 +112,10 @@ local function validate(opts)
   return problems
 end
 
+M._SCHEMA = SCHEMA -- exposed for tests and scripts/check-docs.lua
 M._validate = validate -- exposed for tests
 
----@param opts hangar.Config|nil
+---@param opts hangar.Opts?
 function M.setup(opts)
   opts = opts or {}
   if type(opts) ~= "table" then

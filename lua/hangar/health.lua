@@ -3,6 +3,10 @@ local M = {}
 
 local health = vim.health
 
+---First line of `exe --version`, or nil if it is absent or answers non-zero.
+---Spawns a process, so call it once per executable — see #18.
+---@param exe string
+---@return string|nil version
 local function version_of(exe)
   local ok, res = pcall(function()
     return vim.system({ exe, "--version" }, { text = true }):wait(5000)
@@ -13,6 +17,9 @@ local function version_of(exe)
   return vim.split(vim.trim(res.stdout or ""), "\n")[1]
 end
 
+---Entry point for `:checkhealth hangar`. Reports Neovim and git versions, one
+---line per shipped adapter (an absent default adapter is an error, an absent
+---non-default one only a warning), the repo state and the run registry.
 function M.check()
   health.start("hangar.nvim")
 

@@ -4,6 +4,7 @@
 ---turn.completed/turn.failed. Usage is tokens only, so `cost` stays nil.
 local util = require("hangar.adapters.util")
 
+---@class hangar.adapter.codex: hangar.Adapter
 local M = { name = "codex" }
 
 ---Codex has no per-tool approval prompt in exec mode; permissions map to
