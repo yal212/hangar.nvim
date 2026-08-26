@@ -5,6 +5,7 @@
 ---No USD cost or turn count in the stream, so those stay nil.
 local util = require("hangar.adapters.util")
 
+---@class hangar.adapter.gemini: hangar.Adapter
 local M = { name = "gemini" }
 
 local APPROVAL = {

@@ -12,6 +12,11 @@ require("hangar.ui.hl").define()
 local STATUS_HL = { A = "HangarDone", D = "HangarFailed", M = "HangarRunning" }
 
 ---Open a diff tab: base version (scratch) | run's worktree file (or branch blob).
+---Open a diff tab for one changed file: the version at the run's base commit
+---on the left, the run's version on the right. Falls back to the branch blob
+---when the worktree is gone, and to an empty buffer when the file was deleted.
+---@param run hangar.Run
+---@param file { status: string, path: string }
 local function open_diff(run, file)
   vim.cmd("tabnew")
   local tab = vim.api.nvim_get_current_tabpage()

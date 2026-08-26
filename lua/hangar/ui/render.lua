@@ -20,12 +20,19 @@ local STATUS_RANK =
 ---Row ordering cycle, driven by the dashboard's `o` key.
 M.NEXT_SORT = { recent = "status", status = "cost", cost = "recent" }
 
+---Wall-clock time a run has been going, frozen once it finishes.
+---@param run hangar.Run
+---@return string mmss
 local function fmt_elapsed(run)
   local stop = run.finished or os.time()
   local secs = math.max(0, stop - (run.started or stop))
   return ("%02d:%02d"):format(math.floor(secs / 60), secs % 60)
 end
 
+---Model id trimmed to fit the column: drops the `claude-` prefix and a
+---trailing release date. Renders "-" when the run never reported one.
+---@param model string|nil
+---@return string
 local function short_model(model)
   if not model or model == vim.NIL then
     return "-"
@@ -33,6 +40,12 @@ local function short_model(model)
   return (model:gsub("^claude%-", ""):gsub("%-%d%d%d%d%d%d%d%d$", ""))
 end
 
+---Changed-file count for a run, cached per dashboard instance because it
+---shells out to git — recomputed only when `refresh` is set.
+---@param state hangar.DashboardState
+---@param run hangar.Run
+---@param refresh boolean
+---@return integer
 local function files_count(state, run, refresh)
   if refresh or state.files_cache[run.id] == nil then
     local ok, files = pcall(worktree.changed_files, run)
@@ -41,6 +54,11 @@ local function files_count(state, run, refresh)
   return state.files_cache[run.id]
 end
 
+---Rebuild the dashboard buffer: one row per run (best-of-n groups render as a
+---block), a totals footer and the key hints. Also repopulates
+---`state.line_runs`, which is how every dashboard key resolves the row under
+---the cursor back to a run.
+---@param state hangar.DashboardState
 ---@param refresh_files boolean whether to re-run git for the files column
 function M.render(state, refresh_files)
   local all_runs = runner.list(state.root)

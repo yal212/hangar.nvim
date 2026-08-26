@@ -6,6 +6,9 @@ if not ok then
   error("hangar.nvim picker requires telescope.nvim")
 end
 
+---`:Telescope hangar runs` — pick a run, then act on it with the shared
+---|hangar.pickers| actions.
+---@param opts table|nil telescope picker options
 local function runs_picker(opts)
   opts = opts or {}
   local pickers = require("telescope.pickers")
@@ -21,6 +24,10 @@ local function runs_picker(opts)
     return
   end
 
+  ---The run behind the highlighted entry, optionally closing the picker first.
+  ---@param prompt_bufnr integer
+  ---@param close boolean|nil
+  ---@return hangar.Run|nil
   local function selected_run(prompt_bufnr, close)
     local entry = action_state.get_selected_entry()
     if close then
