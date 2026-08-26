@@ -21,6 +21,16 @@ names and the adapter contract are stable within a minor version; breaking chang
 - The run registry is now written to a temporary file and renamed into place, so an
   interrupted or failed write can no longer truncate `runs.json` and lose in-flight runs'
   worktree and branch mappings.
+- Opening the transcript of an iterated run failed with an error instead of showing the
+  transcript: the feedback appended by `i` makes the prompt multi-line, and the prompt is
+  rendered as a single header line. It is now collapsed, as the dashboard and the pickers
+  already did.
+
+### Infrastructure
+
+- Test coverage for the previously untested UI layer: the transcript renderer, the review
+  float, dashboard row building, highlight groups, status icons and the telescope picker.
+  Every module under `lua/` now has at least one spec.
 
 ## [0.1.0] - 2026-08-26
 
