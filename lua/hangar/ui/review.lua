@@ -59,11 +59,29 @@ local function open_diff(run, file)
   end
 end
 
+---A run that never started has nothing to diff: `base`, `worktree` and `branch`
+---are assigned together when it leaves the queue. Checked on the field rather
+---than the status, because a run killed while queued keeps `base == nil` too.
+---@param run hangar.Run
+---@return boolean ok
+---@return string|nil err
+function M.reviewable(run)
+  if not run.base then
+    return false, "run " .. run.id .. " has not started yet"
+  end
+  return true
+end
+
 ---@param run_id string
 function M.open(run_id)
   local run = runner.get(run_id)
   if not run then
     util.notify_err("no such run: " .. tostring(run_id))
+    return
+  end
+  local reviewable, why = M.reviewable(run)
+  if not reviewable then
+    util.notify_err(why)
     return
   end
   local files = worktree.changed_files(run)

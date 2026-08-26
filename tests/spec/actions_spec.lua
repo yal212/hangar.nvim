@@ -116,6 +116,23 @@ return function(harness)
   restore()
   check(said("r1") and levels[1] == vim.log.levels.ERROR, "actions: resume reports why a done run cannot resume")
 
+  -- a queued run has no base commit yet: review must refuse instead of throwing,
+  -- and must not close the dashboard on the way out
+  capture()
+  local ok = pcall(actions.review, mk("q1", { status = "queued" }))
+  restore()
+  check(ok, "actions: review of a queued run does not throw")
+  check(said("has not started yet"), "actions: review says a queued run has not started")
+  check(vim.bo.filetype ~= "hangar_review", "actions: review of a queued run opens nothing")
+
+  -- ...while a started run still opens the review float
+  local head = sh(repo, { "git", "rev-parse", "HEAD" })
+  capture()
+  actions.review(mk("v1", { base = head, branch = "main", worktree = repo }))
+  restore()
+  check(vim.bo.filetype == "hangar_review", "actions: review of a started run opens the float")
+  vim.api.nvim_win_close(0, true)
+
   -- spawn with an empty prompt never reaches the runner
   input_answer = ""
   local before = vim.tbl_count(runner.runs)
@@ -126,7 +143,7 @@ return function(harness)
 
   vim.fn.confirm, vim.ui.input, vim.ui.select = orig_confirm, orig_input, orig_select
   for id in pairs(runner.runs) do
-    if id:match("^[adgkmir]%d$") then
+    if id:match("^[adgkmirqv]%d$") then
       runner.runs[id] = nil
     end
   end

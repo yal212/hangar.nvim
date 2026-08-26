@@ -19,8 +19,16 @@ end
 
 ---@param run hangar.Run
 function M.review(run)
+  -- refuse before closing the dashboard, so a `d` on a queued row is a no-op
+  -- rather than costing the user the window they were reading
+  local review = require("hangar.ui.review")
+  local ok, err = review.reviewable(run)
+  if not ok then
+    util.notify_err(err)
+    return
+  end
   close_dashboard()
-  require("hangar.ui.review").open(run.id)
+  review.open(run.id)
 end
 
 ---Sibling attempts of a merged best-of-n run that are safe to discard.
