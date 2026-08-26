@@ -8,6 +8,8 @@ names and the adapter contract are stable within a minor version; breaking chang
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-08-26
+
 ### Fixed
 
 - Reviewing a run that was still queued crashed on its missing base commit. `d` in the
@@ -122,5 +124,6 @@ First tagged release. Everything below shipped between 2026-07-12 and 2026-08-26
 - Internal split: `hangar.store` (registry persistence), `hangar.ui.render` and `hangar.ui.actions`
   extracted from `runner.lua` and `dashboard.lua`; shared `hangar.util` notification helpers.
 
-[Unreleased]: https://github.com/yal212/hangar.nvim/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/yal212/hangar.nvim/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/yal212/hangar.nvim/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/yal212/hangar.nvim/releases/tag/v0.1.0

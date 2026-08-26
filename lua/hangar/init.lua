@@ -3,7 +3,7 @@ local util = require("hangar.util")
 
 local M = {}
 
-M.version = "0.1.0"
+M.version = "0.2.0"
 
 ---Resolved configuration. `M.config` is this shape after `setup()` has merged
 ---the user's options in; every field is present, though several may be nil.
