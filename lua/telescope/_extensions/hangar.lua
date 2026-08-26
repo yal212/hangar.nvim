@@ -1,5 +1,6 @@
 ---Telescope extension: `:Telescope hangar runs`.
 ---<CR> transcript · <C-d> review/diff · <C-e> iterate · <C-x> discard.
+local util = require("hangar.util")
 local ok, telescope = pcall(require, "telescope")
 if not ok then
   error("hangar.nvim picker requires telescope.nvim")
@@ -16,7 +17,7 @@ local function runs_picker(opts)
 
   local entries, err = hangar_pickers.entries()
   if not entries then
-    vim.notify("[hangar] " .. err, vim.log.levels.ERROR)
+    util.notify_err(err)
     return
   end
 
@@ -43,30 +44,19 @@ local function runs_picker(opts)
       }),
       sorter = conf.generic_sorter(opts),
       attach_mappings = function(prompt_bufnr, map)
-        actions.select_default:replace(function()
-          local run = selected_run(prompt_bufnr, true)
-          if run then
-            hangar_pickers.open_transcript(run.id)
+        for _, action in ipairs(hangar_pickers.actions) do
+          local handler = function()
+            local run = selected_run(prompt_bufnr, true)
+            if run then
+              action.run(run.id)
+            end
           end
-        end)
-        map({ "i", "n" }, "<C-d>", function()
-          local run = selected_run(prompt_bufnr, true)
-          if run then
-            hangar_pickers.open_review(run.id)
+          if action.default then
+            actions.select_default:replace(handler)
+          else
+            map({ "i", "n" }, action.telescope, handler)
           end
-        end)
-        map({ "i", "n" }, "<C-e>", function()
-          local run = selected_run(prompt_bufnr, true)
-          if run then
-            hangar_pickers.iterate(run.id)
-          end
-        end)
-        map({ "i", "n" }, "<C-x>", function()
-          local run = selected_run(prompt_bufnr, true)
-          if run then
-            hangar_pickers.discard(run.id)
-          end
-        end)
+        end
         return true
       end,
     })

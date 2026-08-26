@@ -1,4 +1,6 @@
 ---hangar.nvim — run a fleet of coding agents in parallel git worktrees.
+local util = require("hangar.util")
+
 local M = {}
 
 M.version = "0.1.0"
@@ -100,7 +102,7 @@ function M.spawn(prompt, opts)
     opts.permission_mode = default and PERMISSION_MODES[default]
   end
   if not opts.permission_mode then
-    vim.notify("[hangar] spawn needs permission_mode (or default_permission in setup)", vim.log.levels.ERROR)
+    util.notify_err("spawn needs permission_mode (or default_permission in setup)")
     return
   end
   local runner = require("hangar.runner")
@@ -110,10 +112,10 @@ function M.spawn(prompt, opts)
   if n == 1 then
     local run, err = runner.spawn(prompt, opts)
     if not run then
-      vim.notify("[hangar] " .. err, vim.log.levels.ERROR)
+      util.notify_err(err)
       return
     end
-    vim.notify(("[hangar] spawned run %s on branch %s"):format(run.id, run.branch))
+    util.notify(("spawned run %s on branch %s"):format(run.id, run.branch))
     return run
   end
 
@@ -123,13 +125,13 @@ function M.spawn(prompt, opts)
   for attempt = 1, n do
     local run, err = runner.spawn(prompt, vim.tbl_extend("force", opts, { group = group, attempt = attempt }))
     if not run then
-      vim.notify("[hangar] attempt " .. attempt .. ": " .. err, vim.log.levels.ERROR)
+      util.notify_err("attempt " .. attempt .. ": " .. err)
       break
     end
     runs[#runs + 1] = run
   end
   if #runs > 0 then
-    vim.notify(("[hangar] spawned %d attempts of the same prompt (group %s)"):format(#runs, group))
+    util.notify(("spawned %d attempts of the same prompt (group %s)"):format(#runs, group))
   end
   return runs
 end
@@ -147,7 +149,7 @@ function M._command(cmd)
   if sub == "spawn" then
     local parsed, err = parse_spawn_args(vim.list_slice(fargs, 2))
     if not parsed then
-      vim.notify("[hangar] " .. err, vim.log.levels.ERROR)
+      util.notify_err(err)
       return
     end
     M.spawn(parsed.prompt, {
@@ -159,18 +161,18 @@ function M._command(cmd)
   elseif sub == "kill" then
     local ok, err = require("hangar.runner").kill(fargs[2])
     if not ok then
-      vim.notify("[hangar] " .. err, vim.log.levels.ERROR)
+      util.notify_err(err)
     end
   elseif sub == "clean" then
     local root, err = require("hangar.worktree").root()
     if not root then
-      vim.notify("[hangar] " .. err, vim.log.levels.ERROR)
+      util.notify_err(err)
       return
     end
     local count = require("hangar.runner").clean(root)
-    vim.notify(("[hangar] cleaned %d run(s)"):format(count))
+    util.notify(("cleaned %d run(s)"):format(count))
   else
-    vim.notify("[hangar] unknown subcommand: " .. sub, vim.log.levels.ERROR)
+    util.notify_err("unknown subcommand: " .. sub)
   end
 end
 

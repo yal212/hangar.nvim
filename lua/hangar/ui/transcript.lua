@@ -1,5 +1,6 @@
 ---Streaming transcript tail: pretty-prints a run's parsed events into a
 ---split and follows the tail while the cursor stays at the bottom.
+local util = require("hangar.util")
 local runner = require("hangar.runner")
 
 local M = {}
@@ -79,7 +80,7 @@ end
 function M.open(run_id)
   local run = runner.get(run_id)
   if not run then
-    vim.notify("[hangar] no such run: " .. tostring(run_id), vim.log.levels.ERROR)
+    util.notify_err("no such run: " .. tostring(run_id))
     return
   end
 

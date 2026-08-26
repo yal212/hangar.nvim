@@ -1,5 +1,6 @@
 ---Review a run: changed-file list in a float; <CR> opens a diffsplit of
 ---base-commit version vs the run's version; merge/discard from here too.
+local util = require("hangar.util")
 local runner = require("hangar.runner")
 local worktree = require("hangar.worktree")
 
@@ -62,7 +63,7 @@ end
 function M.open(run_id)
   local run = runner.get(run_id)
   if not run then
-    vim.notify("[hangar] no such run: " .. tostring(run_id), vim.log.levels.ERROR)
+    util.notify_err("no such run: " .. tostring(run_id))
     return
   end
   local files = worktree.changed_files(run)
@@ -140,9 +141,9 @@ function M.open(run_id)
     local ok, err = runner.merge(run.id)
     close()
     if ok then
-      vim.notify(("[hangar] merged %s"):format(run.id))
+      util.notify(("merged %s"):format(run.id))
     else
-      vim.notify("[hangar] " .. err, vim.log.levels.ERROR)
+      util.notify_err(err)
     end
   end)
   map("x", function()
@@ -152,7 +153,7 @@ function M.open(run_id)
     local ok, err = runner.discard(run.id)
     close()
     if not ok then
-      vim.notify("[hangar] " .. err, vim.log.levels.ERROR)
+      util.notify_err(err)
     end
   end)
 end

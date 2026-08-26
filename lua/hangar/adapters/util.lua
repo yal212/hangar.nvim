@@ -1,6 +1,22 @@
 ---Shared helpers for adapter parsers.
 local M = {}
 
+---Decode one line of a CLI's JSON stream. Returns nil for blank lines, invalid
+---JSON, and any non-object payload — every adapter opens `parse_line` with this,
+---and all of them treat an undecodable line as "ignore and keep going".
+---@param line string
+---@return table|nil obj
+function M.decode_line(line)
+  if line == "" then
+    return nil
+  end
+  local ok, obj = pcall(vim.json.decode, line)
+  if not ok or type(obj) ~= "table" then
+    return nil
+  end
+  return obj
+end
+
 ---Collapse whitespace and cap length for one-line transcript display.
 ---@param s string
 ---@param max integer
