@@ -32,7 +32,7 @@ jobs:
           neovim: true
           version: ${{ matrix.neovim }}
       - name: Run offline test suite
-        run: nvim --headless -l tests/run_tests.lua
+        run: make test
 
   style:
     runs-on: ubuntu-latest
@@ -42,7 +42,8 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           version: v2.5.2
-          args: --check lua/ plugin/ tests/
+          # keep in step with LUA_PATHS in the Makefile
+          args: --check lua/ plugin/ tests/ scripts/ assets/demo/init.lua
 
   lint:
     runs-on: ubuntu-latest
@@ -53,7 +54,10 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends lua-check
 
       - name: luacheck
-        run: luacheck lua plugin tests
+        run: luacheck lua plugin tests scripts assets/demo/init.lua
+
+      - name: shellcheck
+        run: shellcheck assets/demo/fake-claude assets/demo/seed-repo.sh scripts/*.sh
 
       # .luarc.json points workspace.library at $VIMRUNTIME/lua, so the type
       # check needs a Neovim runtime present and that variable exported
@@ -75,6 +79,17 @@ jobs:
           export VIMRUNTIME="$(nvim --headless -c 'echo $VIMRUNTIME' -c 'quit' 2>&1)"
           echo "VIMRUNTIME=$VIMRUNTIME"
           lua-language-server --check . --checklevel=Warning --logpath="$RUNNER_TEMP/lls-log"
+
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: rhysd/action-setup-vim@febef33995d6649302e9d88dda81e071b68f16a7 # v1.6.1
+        with:
+          neovim: true
+          version: stable
+      - name: Assert docs match the code
+        run: make docs
 
   coverage:
     runs-on: ubuntu-latest

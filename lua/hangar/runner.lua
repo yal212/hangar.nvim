@@ -3,6 +3,7 @@
 ---
 ---UI layers subscribe via `User HangarRunUpdate` autocmds (data = { id }).
 local worktree = require("hangar.worktree")
+local store = require("hangar.store")
 
 local M = {}
 
@@ -36,73 +37,22 @@ M.runs = {}
 local jobs = {}
 local loaded = false
 
-local state_dir_override ---tests point persistence at a scratch dir
-
-function M._set_state_dir(dir)
-  state_dir_override = dir
-end
-
-local function state_file()
-  return (state_dir_override or vim.fn.stdpath("data")) .. "/hangar/runs.json"
-end
-
 local function notify_update(id)
   vim.api.nvim_exec_autocmds("User", { pattern = "HangarRunUpdate", data = { id = id } })
 end
 
+---Persist the registry. See |hangar.store| for the file format.
 function M.save()
-  local path = state_file()
-  vim.fn.mkdir(vim.fn.fnamemodify(path, ":h"), "p")
-  local ok, encoded = pcall(vim.json.encode, M.runs)
-  if ok then
-    local f = io.open(path, "w")
-    if f then
-      f:write(encoded)
-      f:close()
-    end
-  end
+  store.save(M.runs)
 end
 
----True if the pid exists (signal 0 probes without killing).
-local function pid_alive(pid)
-  return pid ~= nil and vim.uv.kill(pid, 0) == 0
-end
-
----Status for a run persisted as "running" by a previous session: "detached"
----when its process is still alive, "orphaned" when it is gone.
-local function classify_loaded(run)
-  return pid_alive(run.pid) and "detached" or "orphaned"
-end
-
-M._classify_loaded = classify_loaded -- exposed for tests
-
----Load persisted runs once per session. Runs that were live in a previous
----session can't be reattached; if their process still exists they become
----"detached" (watch it finish, then resume), otherwise "orphaned" (worktree,
----if any, is still reviewable/mergeable, and the session may be resumable).
+---Load persisted runs into the registry, once per session.
 function M.load()
   if loaded then
     return
   end
   loaded = true
-  local f = io.open(state_file(), "r")
-  if not f then
-    return
-  end
-  local content = f:read("*a")
-  f:close()
-  local ok, decoded = pcall(vim.json.decode, content)
-  if not ok or type(decoded) ~= "table" then
-    return
-  end
-  for id, run in pairs(decoded) do
-    if run.status == "running" then
-      run.status = classify_loaded(run)
-    elseif run.status == "queued" then
-      -- never auto-spawn agents on startup; the prompt is still visible
-      run.status = "killed"
-      run.error = "queued run never started (nvim exited)"
-    end
+  for id, run in pairs(store.load()) do
     M.runs[id] = run
   end
 end
@@ -115,7 +65,7 @@ function M.list(root)
   M.load()
   local died = {}
   for _, run in pairs(M.runs) do
-    if run.status == "detached" and not pid_alive(run.pid) then
+    if run.status == "detached" and not store.pid_alive(run.pid) then
       run.status = "orphaned"
       run.finished = os.time()
       died[#died + 1] = run.id

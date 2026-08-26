@@ -83,7 +83,7 @@ function M.check()
   end
 
   -- persisted state
-  local state = vim.fn.stdpath("data") .. "/hangar/runs.json"
+  local state = require("hangar.store").path()
   local f = io.open(state, "r")
   if not f then
     health.ok("no state file yet (created on first spawn): " .. state)

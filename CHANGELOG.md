@@ -8,6 +8,10 @@ names and the adapter contract are stable within a minor version; breaking chang
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-08-26
+
+First tagged release. Everything below shipped between 2026-07-12 and 2026-08-26.
+
 ### Added
 
 - `CONTRIBUTING.md` with a dev setup, test instructions, and an adapter-authoring guide.
@@ -15,10 +19,24 @@ names and the adapter contract are stable within a minor version; breaking chang
 - Issue forms (bug, feature, adapter request) and a pull-request template.
 - `.editorconfig` matching `stylua.toml`.
 - `M.version`, reported by `:checkhealth hangar`.
+- `setup()` now validates its options: unknown keys, wrong types and out-of-range values are
+  reported by name instead of being silently merged.
+- `Makefile` with `check`, `test`, `test-one FILTER=...`, `fmt`, `lint`, `typecheck`, `docs`,
+  `coverage` and `hooks` targets. CI runs the same targets, so local and CI results cannot drift.
+- Optional pre-commit hook (`make hooks`) running `make lint`.
+- A rockspec, so the plugin can be installed with luarocks/rocks.nvim.
 
-## [0.1.0] - 2026-08-23
+### Deprecated
 
-First tagged release. Everything below shipped between 2026-07-12 and 2026-08-23.
+- `config.claude_cmd` now warns on use and will be removed in 0.3.0. Use
+  `adapters = { claude_code = { cmd = ... } }` instead.
+
+### Fixed
+
+- The demo stub (`assets/demo/fake-claude`) ignored `--version` and ran its whole scenario instead,
+  so `:checkhealth hangar` during a demo wrote the canned edits into the repo being demoed. It now
+  answers and exits like the real CLI.
+- The demo stub mishandled scenario files whose paths contain spaces.
 
 ### Added
 
@@ -62,7 +80,17 @@ First tagged release. Everything below shipped between 2026-07-12 and 2026-08-23
 
 ### Infrastructure
 
-- CI running the offline test suite and `stylua --check` on push and pull request.
+- CI running the offline test suite and `stylua --check` on push and pull request, later extended
+  with luacheck, `lua-language-server --check`, shellcheck, luacov coverage, and a Neovim version
+  matrix (0.10, stable, nightly).
+- Test suite split from one 912-line script into per-module specs under `tests/spec/`, with a
+  shared harness and a `--filter` flag for running a subset.
+- Docs drift guard (`scripts/check-docs.lua`, `make docs`): config keys, adapter names, `:Hangar`
+  subcommands, the version and vimdoc help tags are asserted against the code on every PR.
+- Release workflow: pushing a `vX.Y.Z` tag publishes a GitHub release from the matching CHANGELOG
+  section, after checking the tag agrees with `M.version`.
+- Internal split: `hangar.store` (registry persistence), `hangar.ui.render` and `hangar.ui.actions`
+  extracted from `runner.lua` and `dashboard.lua`; shared `hangar.util` notification helpers.
 
 [Unreleased]: https://github.com/yal212/hangar.nvim/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/yal212/hangar.nvim/releases/tag/v0.1.0

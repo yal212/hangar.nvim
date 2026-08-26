@@ -18,6 +18,17 @@ set -u
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCENES="$HERE/scenes"
 
+# `--version` must answer and exit without doing anything else: hangar's
+# :checkhealth probes every configured adapter this way, from the user's repo
+# rather than a worktree. Falling through to the scenario here would write the
+# canned edits straight into the repo being demoed.
+case "${1-}" in
+  --version | -v)
+    echo "1.0.0 (fake-claude demo stub)"
+    exit 0
+    ;;
+esac
+
 prompt=""
 model="sonnet"
 while [ $# -gt 0 ]; do
@@ -93,14 +104,16 @@ tool_use Bash '{"command":"rg -n \"theme|auth\" src test","description":"survey 
 sleep 0.4
 tool_result "src/settings.js   src/theme.css   test/auth.test.js"
 
-for file in $(cd "$SCENES/$scene" && find . -type f | sed 's|^\./||' | sort); do
+# NUL-delimited so a path with spaces cannot split into two "files"
+while IFS= read -r -d '' file; do
+  file="${file#./}"
   sleep "$tick"
   tool_use Edit "{\"file_path\":\"$(json_escape "$file")\"}"
   mkdir -p "$(dirname "$file")"
   cp "$SCENES/$scene/$file" "$file"
   sleep 0.4
   tool_result "Applied edit to $file"
-done
+done < <(cd "$SCENES/$scene" && find . -type f -print0 | sort -z)
 
 sleep "$tick"
 tool_use Bash '{"command":"npm test","description":"run the suite"}'

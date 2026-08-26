@@ -1,4 +1,6 @@
 ---hangar.nvim — run a fleet of coding agents in parallel git worktrees.
+local util = require("hangar.util")
+
 local M = {}
 
 M.version = "0.1.0"
@@ -22,9 +24,87 @@ M.config = {
   max_concurrent = nil, ---@type integer|nil
 }
 
+---Accepted shape per option. `types` is checked with type(); `values` (when
+---present) restricts a string to a fixed set. Every key here must also exist in
+---M.config — the two are cross-checked by scripts/check-docs.lua.
+local SCHEMA = {
+  default_permission = { types = { "string" }, values = { yolo = true, safe = true } },
+  merge = { types = { "string" }, values = { squash = true, ff = true, merge = true } },
+  model = { types = { "string" } },
+  claude_cmd = { types = { "string" } },
+  adapter = { types = { "string" } },
+  adapters = { types = { "table" } },
+  notify = { types = { "boolean", "function" } },
+  max_concurrent = { types = { "number" } },
+}
+
+---Validate a user-supplied options table. Returns the problems as a list of
+---strings rather than raising: a bad value in someone's init.lua should not
+---abort the rest of their config.
+---
+---Note: this is hand-rolled rather than using vim.validate, because the table
+---form is deprecated on nightly and the replacement does not exist on 0.10 —
+---and CI tests both ends of that range.
+---@param opts table
+---@return string[] problems
+local function validate(opts)
+  local problems = {}
+  local known = vim.tbl_keys(SCHEMA)
+  table.sort(known)
+  for key, value in pairs(opts) do
+    local rule = SCHEMA[key]
+    if not rule then
+      local hint = ""
+      -- a near-miss is almost always a typo, so name the likely intent
+      for _, candidate in ipairs(known) do
+        if vim.startswith(candidate, tostring(key):sub(1, 3)) then
+          hint = (" — did you mean %q?"):format(candidate)
+          break
+        end
+      end
+      problems[#problems + 1] = ("unknown option %q%s (valid: %s)"):format(
+        tostring(key),
+        hint,
+        table.concat(known, ", ")
+      )
+    elseif not vim.list_contains(rule.types, type(value)) then
+      problems[#problems + 1] = ("option %q expects %s, got %s"):format(
+        key,
+        table.concat(rule.types, " or "),
+        type(value)
+      )
+    elseif rule.values and not rule.values[value] then
+      local allowed = vim.tbl_keys(rule.values)
+      table.sort(allowed)
+      problems[#problems + 1] = ("option %q must be one of: %s (got %q)"):format(
+        key,
+        table.concat(allowed, ", "),
+        value
+      )
+    end
+  end
+  table.sort(problems)
+  return problems
+end
+
+M._validate = validate -- exposed for tests
+
 ---@param opts hangar.Config|nil
 function M.setup(opts)
-  M.config = vim.tbl_deep_extend("force", M.config, opts or {})
+  opts = opts or {}
+  if type(opts) ~= "table" then
+    util.notify_err("setup() expects a table of options")
+    return
+  end
+  for _, problem in ipairs(validate(opts)) do
+    util.notify_err("setup(): " .. problem)
+  end
+  if opts.claude_cmd ~= nil then
+    util.notify_warn(
+      "config.claude_cmd is deprecated and will be removed in 0.3.0 — use adapters = { claude_code = { cmd = ... } }"
+    )
+  end
+  M.config = vim.tbl_deep_extend("force", M.config, opts)
 end
 
 ---Statusline component: "hangar 2● 1✓" (running / awaiting review), "" when idle.
@@ -100,7 +180,7 @@ function M.spawn(prompt, opts)
     opts.permission_mode = default and PERMISSION_MODES[default]
   end
   if not opts.permission_mode then
-    vim.notify("[hangar] spawn needs permission_mode (or default_permission in setup)", vim.log.levels.ERROR)
+    util.notify_err("spawn needs permission_mode (or default_permission in setup)")
     return
   end
   local runner = require("hangar.runner")
@@ -110,10 +190,10 @@ function M.spawn(prompt, opts)
   if n == 1 then
     local run, err = runner.spawn(prompt, opts)
     if not run then
-      vim.notify("[hangar] " .. err, vim.log.levels.ERROR)
+      util.notify_err(err)
       return
     end
-    vim.notify(("[hangar] spawned run %s on branch %s"):format(run.id, run.branch))
+    util.notify(("spawned run %s on branch %s"):format(run.id, run.branch))
     return run
   end
 
@@ -123,13 +203,13 @@ function M.spawn(prompt, opts)
   for attempt = 1, n do
     local run, err = runner.spawn(prompt, vim.tbl_extend("force", opts, { group = group, attempt = attempt }))
     if not run then
-      vim.notify("[hangar] attempt " .. attempt .. ": " .. err, vim.log.levels.ERROR)
+      util.notify_err("attempt " .. attempt .. ": " .. err)
       break
     end
     runs[#runs + 1] = run
   end
   if #runs > 0 then
-    vim.notify(("[hangar] spawned %d attempts of the same prompt (group %s)"):format(#runs, group))
+    util.notify(("spawned %d attempts of the same prompt (group %s)"):format(#runs, group))
   end
   return runs
 end
@@ -147,7 +227,7 @@ function M._command(cmd)
   if sub == "spawn" then
     local parsed, err = parse_spawn_args(vim.list_slice(fargs, 2))
     if not parsed then
-      vim.notify("[hangar] " .. err, vim.log.levels.ERROR)
+      util.notify_err(err)
       return
     end
     M.spawn(parsed.prompt, {
@@ -159,18 +239,18 @@ function M._command(cmd)
   elseif sub == "kill" then
     local ok, err = require("hangar.runner").kill(fargs[2])
     if not ok then
-      vim.notify("[hangar] " .. err, vim.log.levels.ERROR)
+      util.notify_err(err)
     end
   elseif sub == "clean" then
     local root, err = require("hangar.worktree").root()
     if not root then
-      vim.notify("[hangar] " .. err, vim.log.levels.ERROR)
+      util.notify_err(err)
       return
     end
     local count = require("hangar.runner").clean(root)
-    vim.notify(("[hangar] cleaned %d run(s)"):format(count))
+    util.notify(("cleaned %d run(s)"):format(count))
   else
-    vim.notify("[hangar] unknown subcommand: " .. sub, vim.log.levels.ERROR)
+    util.notify_err("unknown subcommand: " .. sub)
   end
 end
 

@@ -1,5 +1,6 @@
 ---Shared data + actions for the optional run pickers (telescope, fzf-lua).
 ---The core plugin never requires the host picker plugins; the wrappers do.
+local util = require("hangar.util")
 local M = {}
 
 local icons = require("hangar.ui.icons")
@@ -51,9 +52,9 @@ function M.iterate(id)
     end
     local run, err = require("hangar.runner").iterate(id, feedback)
     if run then
-      vim.notify(("[hangar] iterating on %s as run %s"):format(id, run.id))
+      util.notify(("iterating on %s as run %s"):format(id, run.id))
     else
-      vim.notify("[hangar] " .. err, vim.log.levels.ERROR)
+      util.notify_err(err)
     end
   end)
 end
@@ -65,8 +66,19 @@ function M.discard(id)
   end
   local ok, err = require("hangar.runner").discard(id)
   if not ok then
-    vim.notify("[hangar] " .. err, vim.log.levels.ERROR)
+    util.notify_err(err)
   end
 end
+
+---The actions both picker frontends expose, in menu order. Each frontend maps
+---these keys to `run`, so adding an action is a one-line change here instead of
+---the same closure written out in both wrappers.
+---@type { name: string, fzf: string, telescope: string, default: boolean|nil, run: fun(id: string) }[]
+M.actions = {
+  { name = "transcript", fzf = "default", telescope = "<CR>", default = true, run = M.open_transcript },
+  { name = "review", fzf = "ctrl-d", telescope = "<C-d>", run = M.open_review },
+  { name = "iterate", fzf = "ctrl-e", telescope = "<C-e>", run = M.iterate },
+  { name = "discard", fzf = "ctrl-x", telescope = "<C-x>", run = M.discard },
+}
 
 return M

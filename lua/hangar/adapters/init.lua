@@ -4,6 +4,16 @@
 ---with the reason instead of launching a run that would hang.
 local M = {}
 
+---@class hangar.SpawnCmdOpts
+---@field prompt string
+---@field permission_mode "acceptEdits"|"bypassPermissions"
+---@field model string|nil
+---@field cmd string|nil executable override for this adapter
+---@field cwd string|nil worktree path the run executes in (for CLIs that need it as a flag)
+
+---@class hangar.ResumeCmdOpts: hangar.SpawnCmdOpts
+---@field session_id string session to resume (captured from the init event)
+
 ---@param name string
 ---@return table|nil adapter
 ---@return string|nil err
