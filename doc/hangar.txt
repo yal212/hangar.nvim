@@ -66,7 +66,8 @@ bump the minor. See CHANGELOG.md in the repository.
     set (|hangar-config|) — headless agents can't answer permission prompts.
 
 :Hangar kill {id}                                               *:Hangar-kill*
-    Stop a running agent (SIGTERM).
+    Stop a running agent (SIGTERM). Also drops a queued run from the queue
+    and signals a detached one. <Tab> completes the ids it accepts.
 
 :Hangar clean                                                  *:Hangar-clean*
     Delete worktrees and branches of all non-running runs and forget them.
