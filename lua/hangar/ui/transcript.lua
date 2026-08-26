@@ -10,6 +10,9 @@ require("hangar.ui.hl").define()
 local ns = vim.api.nvim_create_namespace("hangar_transcript")
 
 ---Render one event as (lines, hl_group|nil). Multi-line text is split.
+---@param ev hangar.Event
+---@return string[] lines
+---@return string|nil hl_group applied to every line, when the kind has one
 local function event_lines(ev)
   if ev.kind == "text" then
     return vim.split(ev.text, "\n", { plain = true }), nil
@@ -38,6 +41,10 @@ end
 ---Buffers currently tailing, keyed by run id.
 local open_bufs = {}
 
+---Redraw the whole transcript buffer from the run's event list, then follow
+---the tail in any window whose cursor is still at the bottom.
+---@param buf integer
+---@param run hangar.Run
 local function render_all(buf, run)
   -- the prompt is a one-line header, and nvim_buf_set_lines rejects a line
   -- containing a newline — which an iterated run's prompt always has (see

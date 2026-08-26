@@ -3,6 +3,9 @@
 local util = require("hangar.util")
 local M = {}
 
+---Pick a run with fzf-lua. Notifies instead of raising when fzf-lua is absent
+---or the cwd is not a git repo.
+---@param opts table|nil extra fzf-lua options, merged over hangar's own
 function M.runs(opts)
   local ok, fzf = pcall(require, "fzf-lua")
   if not ok then

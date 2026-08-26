@@ -5,6 +5,7 @@
 ---emitted as partial results the runner accumulates).
 local util = require("hangar.adapters.util")
 
+---@class hangar.adapter.opencode: hangar.Adapter
 local M = { name = "opencode" }
 
 -- opencode has no headless equivalent of "edits only": without --auto it
