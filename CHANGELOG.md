@@ -31,6 +31,12 @@ names and the adapter contract are stable within a minor version; breaking chang
 - Test coverage for the previously untested UI layer: the transcript renderer, the review
   float, dashboard row building, highlight groups, status icons and the telescope picker.
   Every module under `lua/` now has at least one spec.
+- `setup()` options and the adapter contract now carry real LuaLS annotations, so an
+  LSP-enabled editor completes every option and type-checks the table you pass. Two
+  supporting fixes make that work rather than decorative: `.luarc.json` gained a
+  `runtime.path`, without which `require("hangar")` resolved to `any` and nothing was
+  checked across module boundaries; and the docs guard now fails when an option gains a
+  `SCHEMA` entry without a matching `---@field`.
 
 ## [0.1.0] - 2026-08-26
 
