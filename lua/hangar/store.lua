@@ -36,18 +36,36 @@ function M.classify_loaded(run)
 end
 
 ---Write the registry. Failures are silent by design: losing run history is not
----worth interrupting the user mid-edit, and the runs themselves are unaffected.
+---worth interrupting the user mid-edit, and the runs themselves are unaffected —
+---save() also runs on every state change, so a persistently unwritable path would
+---spam a message per event.
+---
+---The write goes to a sibling .tmp file and is renamed into place, so runs.json is
+---always either the previous good state or the complete new one. Opening it "w"
+---directly would truncate first, and a crash between truncate and write would lose
+---every in-flight run's worktree/branch mapping — the one thing that has to survive
+---an nvim restart.
 ---@param runs table<string, hangar.Run>
 function M.save(runs)
   local path = M.path()
   vim.fn.mkdir(vim.fn.fnamemodify(path, ":h"), "p")
   local ok, encoded = pcall(vim.json.encode, runs)
-  if ok then
-    local f = io.open(path, "w")
-    if f then
-      f:write(encoded)
-      f:close()
-    end
+  if not ok then
+    return
+  end
+  local tmp = path .. ".tmp"
+  local f = io.open(tmp, "w")
+  if not f then
+    return
+  end
+  local wrote = f:write(encoded)
+  local closed = f:close()
+  if not wrote or not closed then
+    os.remove(tmp)
+    return
+  end
+  if not vim.uv.fs_rename(tmp, path) then
+    os.remove(tmp)
   end
 end
 
