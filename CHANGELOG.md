@@ -8,6 +8,14 @@ names and the adapter contract are stable within a minor version; breaking chang
 
 ## [Unreleased]
 
+### Fixed
+
+- `:checkhealth hangar` probed each agent CLI's `--version` twice per adapter, doubling the
+  worst-case wait. The version-probe timeout also drops from 10s to 5s.
+- The run registry is now written to a temporary file and renamed into place, so an
+  interrupted or failed write can no longer truncate `runs.json` and lose in-flight runs'
+  worktree and branch mappings.
+
 ## [0.1.0] - 2026-08-26
 
 First tagged release. Everything below shipped between 2026-07-12 and 2026-08-26.
