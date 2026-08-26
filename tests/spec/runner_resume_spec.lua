@@ -8,16 +8,16 @@ return function(harness)
 
     local proc = vim.system({ "sleep", "30" })
     check(
-      runner._classify_loaded({ pid = proc.pid }) == "detached",
+      require("hangar.store").classify_loaded({ pid = proc.pid }) == "detached",
       "detached: live pid classifies as detached"
     )
     proc:kill(9)
     proc:wait()
     check(
-      runner._classify_loaded({ pid = proc.pid }) == "orphaned",
+      require("hangar.store").classify_loaded({ pid = proc.pid }) == "orphaned",
       "detached: dead pid classifies as orphaned"
     )
-    check(runner._classify_loaded({}) == "orphaned", "detached: missing pid classifies as orphaned")
+    check(require("hangar.store").classify_loaded({}) == "orphaned", "detached: missing pid classifies as orphaned")
 
     -- a watched detached run whose process dies flips to orphaned via list()
     local proc2 = vim.system({ "sleep", "30" })
