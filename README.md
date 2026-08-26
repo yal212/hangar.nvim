@@ -88,6 +88,9 @@ require("hangar").setup({
 })
 ```
 
+`claude_cmd` is a deprecated alias for `adapters.claude_code.cmd`; it still works but warns, and is
+removed in 0.3.0.
+
 Lua API: `require("hangar").spawn(prompt, { permission_mode = "bypassPermissions", model = "haiku", adapter = "codex" })`.
 
 ### Statusline
@@ -144,15 +147,16 @@ Adapters are a small contract (`name`, `build_cmd`, `parse_line`) — see `lua/h
 ## Tests
 
 ```sh
-# parser + arg handling (offline, free)
-nvim --headless -l tests/run_tests.lua
+make check                      # everything CI runs: lint, typecheck, tests, docs
+make test                       # parser + arg handling (offline, free)
+make test-one FILTER=codex      # one spec
 
 # full end-to-end with real agent runs (costs a few cents; adapters optional)
-XDG_DATA_HOME=$(mktemp -d) nvim --headless -l tests/run_tests.lua --integration
-XDG_DATA_HOME=$(mktemp -d) nvim --headless -l tests/run_tests.lua --integration codex
+make integration
+make integration ADAPTERS="codex"
 ```
 
-`--integration gemini` additionally needs working Gemini CLI auth.
+`make integration ADAPTERS="gemini"` additionally needs working Gemini CLI auth.
 
 ## Contributing
 

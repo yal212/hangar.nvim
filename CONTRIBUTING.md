@@ -38,12 +38,27 @@ hangar has no runtime dependencies. Neovim >= 0.10 is the floor (it uses `vim.sy
 
 ## Tests
 
-The suite is a plain headless script — no plenary, no busted. Two modes:
+The suite is plain headless Lua — no plenary, no busted. `tests/run_tests.lua` discovers every
+`tests/spec/*_spec.lua`, hands each a shared harness, and reports one `ok`/`FAIL` line per
+assertion.
 
 ```sh
-# offline: parsers, arg handling, worktree/git lifecycle. Free, no network, no API calls.
-nvim --headless -l tests/run_tests.lua
+make test                       # offline: parsers, arg handling, worktree/git lifecycle. Free.
+make test-one FILTER=codex      # just the specs whose filename matches
 ```
+
+Layout:
+
+| path | what lives there |
+|---|---|
+| `tests/run_tests.lua` | entry point: bootstrap, spec discovery, `--filter`, exit code |
+| `tests/harness.lua` | `check()`, `sh()`, `git_repo()`, the stub adapters, per-spec config reset |
+| `tests/spec/*_spec.lua` | one file per module; each returns `function(harness)` |
+| `tests/integration/` | the real-CLI end-to-end runs |
+
+Specs must be order-independent: the harness resets `hangar.config` between files and registers the
+`fake` / `fakeresume` stub adapters up front, so `--filter` gives the same result as a full run.
+Clean up anything you add to `runner.runs`.
 
 > [!WARNING]
 > **`--integration` costs money.** It spawns the real agent CLIs against a throwaway repo and
@@ -52,8 +67,8 @@ nvim --headless -l tests/run_tests.lua
 
 ```sh
 # end-to-end with real agent runs — spends money
-XDG_DATA_HOME=$(mktemp -d) nvim --headless -l tests/run_tests.lua --integration
-XDG_DATA_HOME=$(mktemp -d) nvim --headless -l tests/run_tests.lua --integration codex opencode
+make integration
+make integration ADAPTERS="codex opencode"
 ```
 
 Adapter names default to `claude_code`. Append `:safe` to run one with `acceptEdits`, e.g.
@@ -65,12 +80,24 @@ The offline suite must pass for every change.
 ## Formatting and lint
 
 ```sh
-stylua --check lua/ plugin/ tests/     # config: stylua.toml (2 spaces, 120 columns)
-luacheck lua plugin tests              # config: .luacheckrc
-lua-language-server --check .          # type check, uses .luarc.json
+make check      # everything CI runs: lint, typecheck, test, docs
+make fmt        # stylua, in place
+make lint       # stylua --check (stylua.toml), luacheck (.luacheckrc), shellcheck
+make typecheck  # lua-language-server, uses .luarc.json
+make docs       # asserts the docs still match the code (see below)
+make hooks      # optional: install a pre-commit hook that runs `make lint`
 ```
 
-All three run in CI. `.editorconfig` carries the same conventions for non-Lua files.
+CI invokes these same targets, so a green `make check` locally means a green CI.
+`.editorconfig` carries the same conventions for non-Lua files.
+
+### The docs check
+
+`make docs` runs `scripts/check-docs.lua`, which fails the build when the code and the docs
+disagree: every `setup()` option must appear in both `README.md` and `doc/hangar.txt`, every shipped
+adapter and `:Hangar` subcommand must be documented, `M.version` must match the newest dated
+`CHANGELOG.md` heading, and every `|hangar-xxx|` cross-reference must resolve to a real tag. It
+deliberately checks only these mechanical facts — prose is never checked.
 
 ## Commits and PRs
 
@@ -100,7 +127,8 @@ Optional:
 | `unsupported_modes` | `table<string, string>` | permission mode → reason; spawn fails fast instead of hanging |
 | `build_resume_cmd(opts)` | `fun(opts: hangar.ResumeCmdOpts): string[]` | resume an orphaned run's session |
 
-`opts` for `build_cmd` is `hangar.SpawnCmdOpts`: `prompt`, `permission_mode`
+`hangar.SpawnCmdOpts` and `hangar.ResumeCmdOpts` are declared in `lua/hangar/adapters/init.lua`,
+which owns the contract. `opts` for `build_cmd` is `hangar.SpawnCmdOpts`: `prompt`, `permission_mode`
 (`"bypassPermissions"` for `--yolo`, `"acceptEdits"` for `--safe`), `model`, `cmd` (the user's
 executable override), and `cwd` (the worktree path — pass it as a flag if the CLI doesn't honour
 the spawn cwd; `opencode` needs `--dir`).
@@ -125,9 +153,10 @@ purpose — CLIs add them over time) or one event:
 3. Map `--yolo` / `--safe` onto the CLI's own approval flags. If it has **no** non-interactive safe
    mode, declare `unsupported_modes = { acceptEdits = "<reason>" }` — a headless run that waits on
    a permission prompt hangs forever, so failing fast is the correct behaviour.
-4. Add canned-line tests to `tests/run_tests.lua` next to the existing parser sections — one
-   assertion per event kind, using your captured lines verbatim.
-5. Verify a real run: `XDG_DATA_HOME=$(mktemp -d) nvim --headless -l tests/run_tests.lua --integration <name>`.
+4. Add `tests/spec/<name>_spec.lua` modelled on `tests/spec/opencode_spec.lua` — one assertion per
+   event kind, using your captured lines verbatim, plus the blank/garbage-line cases.
+5. Document the adapter in `README.md` and `doc/hangar.txt`; `make docs` fails until you do.
+6. Verify a real run: `make integration ADAPTERS="<name>"`.
 6. Add a row to the permission table in the README and mention the adapter in `doc/hangar.txt`.
 
 The registry (`lua/hangar/adapters/init.lua`) discovers adapters from the runtimepath and validates
@@ -138,3 +167,17 @@ the contract, so there is nothing to register by hand.
 `assets/demo.gif` is scripted — `vhs assets/demo.tape` re-records it from the repo root. It drives
 the real plugin against a throwaway fixture repo, with `assets/demo/fake-claude` standing in for
 the agent CLI, so re-recording is deterministic and costs nothing.
+
+## Releasing
+
+Releases are cut from `main` by pushing a tag; the workflow does the rest.
+
+1. Bump `M.version` in `lua/hangar/init.lua`.
+2. In `CHANGELOG.md`, turn `## [Unreleased]` into `## [X.Y.Z] - YYYY-MM-DD` and add a fresh empty
+   `## [Unreleased]` above it. Add the link-reference lines at the bottom of the file.
+3. `make check` — the docs job fails if the version and the CHANGELOG disagree.
+4. Commit, then `git tag vX.Y.Z && git push origin vX.Y.Z`.
+
+`.github/workflows/release.yml` re-checks the tag against `M.version` and the CHANGELOG, then
+publishes a GitHub release whose body is that version's CHANGELOG section. Publishing to luarocks
+is still manual: `luarocks upload hangar.nvim-X.Y.Z-1.rockspec`.

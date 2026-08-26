@@ -4,16 +4,6 @@ local util = require("hangar.adapters.util")
 
 local M = { name = "claude_code" }
 
----@class hangar.SpawnCmdOpts
----@field prompt string
----@field permission_mode "acceptEdits"|"bypassPermissions"
----@field model string|nil
----@field cmd string|nil executable override for this adapter
----@field cwd string|nil worktree path the run executes in (for CLIs that need it as a flag)
-
----@class hangar.ResumeCmdOpts: hangar.SpawnCmdOpts
----@field session_id string session to resume (captured from the init event)
-
 local WORKTREE_STEER =
   "You are working in an isolated git worktree. Create and modify files only inside the current working directory."
 
@@ -73,11 +63,8 @@ end
 ---@param line string
 ---@return table|nil event
 function M.parse_line(line)
-  if line == "" then
-    return nil
-  end
-  local ok, obj = pcall(vim.json.decode, line)
-  if not ok or not is_tbl(obj) then
+  local obj = util.decode_line(line)
+  if not obj then
     return nil
   end
 
