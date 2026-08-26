@@ -10,6 +10,9 @@ names and the adapter contract are stable within a minor version; breaking chang
 
 ### Fixed
 
+- Reviewing a run that was still queued crashed on its missing base commit. `d` in the
+  dashboard and `<C-d>`/`ctrl-d` in the pickers now report that the run has not started
+  yet, and the dashboard stays open.
 - `:checkhealth hangar` probed each agent CLI's `--version` twice per adapter, doubling the
   worst-case wait. The version-probe timeout also drops from 10s to 5s.
 - The run registry is now written to a temporary file and renamed into place, so an
