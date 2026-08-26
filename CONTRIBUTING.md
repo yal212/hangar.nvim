@@ -167,3 +167,17 @@ the contract, so there is nothing to register by hand.
 `assets/demo.gif` is scripted — `vhs assets/demo.tape` re-records it from the repo root. It drives
 the real plugin against a throwaway fixture repo, with `assets/demo/fake-claude` standing in for
 the agent CLI, so re-recording is deterministic and costs nothing.
+
+## Releasing
+
+Releases are cut from `main` by pushing a tag; the workflow does the rest.
+
+1. Bump `M.version` in `lua/hangar/init.lua`.
+2. In `CHANGELOG.md`, turn `## [Unreleased]` into `## [X.Y.Z] - YYYY-MM-DD` and add a fresh empty
+   `## [Unreleased]` above it. Add the link-reference lines at the bottom of the file.
+3. `make check` — the docs job fails if the version and the CHANGELOG disagree.
+4. Commit, then `git tag vX.Y.Z && git push origin vX.Y.Z`.
+
+`.github/workflows/release.yml` re-checks the tag against `M.version` and the CHANGELOG, then
+publishes a GitHub release whose body is that version's CHANGELOG section. Publishing to luarocks
+is still manual: `luarocks upload hangar.nvim-X.Y.Z-1.rockspec`.
