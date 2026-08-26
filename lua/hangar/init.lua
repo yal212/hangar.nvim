@@ -121,6 +121,10 @@ local PERMISSION_MODES = { yolo = "bypassPermissions", safe = "acceptEdits" }
 
 local MAX_FLEET = 8
 
+---Statuses M.kill accepts (see runner.kill): a live job, a run parked in the
+---queue, or one still alive after an nvim restart. Anything else is finished.
+local KILLABLE = { running = true, queued = true, detached = true }
+
 ---Parse `:Hangar spawn` args: flags (--yolo/--safe/--model m/--adapter a/--n c) then prompt.
 ---@return table|nil parsed { prompt, permission_mode, model, adapter, n }
 ---@return string|nil err
@@ -277,10 +281,11 @@ function M._complete(arg_lead, cmd_line)
     runner.load()
     local ids = {}
     for id, run in pairs(runner.runs) do
-      if run.status == "running" then
+      if KILLABLE[run.status] and vim.startswith(id, arg_lead) then
         ids[#ids + 1] = id
       end
     end
+    table.sort(ids) -- pairs() order is arbitrary; the menu should not shuffle
     return ids
   end
   return {}
