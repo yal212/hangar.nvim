@@ -1,6 +1,8 @@
 # hangar.nvim
 
+[![Release](https://img.shields.io/github/v/release/yal212/hangar.nvim?label=release&color=blue)](https://github.com/yal212/hangar.nvim/releases/latest)
 [![CI](https://github.com/yal212/hangar.nvim/actions/workflows/ci.yml/badge.svg)](https://github.com/yal212/hangar.nvim/actions/workflows/ci.yml)
+[![Neovim](https://img.shields.io/badge/Neovim-0.10%2B-57A143?logo=neovim&logoColor=white)](https://neovim.io)
 
 **Run a fleet of coding agents in parallel git worktrees. Review and merge from a dashboard.**
 
@@ -44,7 +46,7 @@ To pin instead of tracking `main`:
 { "yal212/hangar.nvim", version = "^0.1", cmd = "Hangar", opts = {} }
 ```
 
-While 0.x, `setup()` option names and the adapter contract are stable within a minor version; breaking changes bump the minor. `:checkhealth hangar` reports the installed version, and [CHANGELOG.md](CHANGELOG.md) records what changed.
+This resolves to the [latest release](https://github.com/yal212/hangar.nvim/releases/latest). While 0.x, `setup()` option names and the adapter contract are stable within a minor version; breaking changes bump the minor. `:checkhealth hangar` reports the installed version, and [CHANGELOG.md](CHANGELOG.md) records what changed.
 
 ## Usage
 
