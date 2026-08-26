@@ -60,4 +60,44 @@ return function(harness)
   check(warned and warned:find("deprecated", 1, true) ~= nil, "setup: claude_cmd warns that it is deprecated")
   check(warned and warned:find("0.3.0", 1, true) ~= nil, "setup: deprecation names the removal version")
   check(hangar.config.claude_cmd == "my-claude", "setup: claude_cmd still takes effect")
+
+  -- :Hangar <Tab> completion
+  local function has(list, want)
+    return vim.list_contains(list, want)
+  end
+
+  local subs = hangar._complete("", ":Hangar ")
+  check(has(subs, "spawn") and has(subs, "kill") and has(subs, "clean"), "complete: offers every subcommand")
+  check(has(hangar._complete("sp", ":Hangar sp"), "spawn"), "complete: subcommand filters on what is typed")
+  check(#hangar._complete("z", ":Hangar z") == 0, "complete: no subcommand matches a bad prefix")
+
+  local flags = hangar._complete("", ":Hangar spawn ")
+  check(has(flags, "--yolo") and has(flags, "--adapter"), "complete: spawn offers its flags")
+  check(has(hangar._complete("--a", ":Hangar spawn --a"), "--adapter"), "complete: spawn flags filter on the prefix")
+  check(
+    has(hangar._complete("", ":Hangar spawn --adapter "), "claude_code"),
+    "complete: --adapter offers the shipped adapters"
+  )
+
+  -- kill accepts running, queued and detached runs (runner.kill), so all three
+  -- must be completable — offering only "running" hid the rest behind guesswork
+  local runner = require("hangar.runner")
+  runner.runs.kb = { id = "kb", status = "running" }
+  runner.runs.ka = { id = "ka", status = "queued" }
+  runner.runs.kc = { id = "kc", status = "detached" }
+  runner.runs.kd = { id = "kd", status = "done" }
+  runner.runs.xa = { id = "xa", status = "running" }
+
+  local ids = hangar._complete("", ":Hangar kill ")
+  check(has(ids, "ka") and has(ids, "kb") and has(ids, "kc"), "complete: kill offers running, queued and detached")
+  check(not has(ids, "kd"), "complete: kill omits a finished run")
+  -- prefix-scoped, so the assertion does not depend on what else is registered
+  check(
+    vim.deep_equal(hangar._complete("k", ":Hangar kill k"), { "ka", "kb", "kc" }),
+    "complete: kill ids filter on the prefix and come back sorted"
+  )
+
+  for _, id in ipairs({ "ka", "kb", "kc", "kd", "xa" }) do
+    runner.runs[id] = nil
+  end
 end
