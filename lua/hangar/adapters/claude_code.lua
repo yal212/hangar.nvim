@@ -2,6 +2,7 @@
 ---Adapter contract: `name`, `build_cmd(opts) -> argv`, `parse_line(line) -> event|nil`.
 local util = require("hangar.adapters.util")
 
+---@class hangar.adapter.claude_code: hangar.Adapter
 local M = { name = "claude_code" }
 
 local WORKTREE_STEER =

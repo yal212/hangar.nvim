@@ -12,6 +12,31 @@ return function(harness)
     "registry: available() lists adapters only"
   )
 
+  -- Every shipped adapter satisfies hangar.Adapter. lua-language-server cannot
+  -- enforce this — missing-fields only fires on a table literal, and an adapter
+  -- assigns build_cmd/parse_line well after `local M = { name = ... }` — so the
+  -- contract a fifth adapter has to meet is checked here instead.
+  for _, name in ipairs(registry.available()) do
+    local adapter, aerr = registry.get(name)
+    check(
+      adapter ~= nil,
+      ("registry: %s implements the contract%s"):format(name, adapter and "" or ": " .. tostring(aerr))
+    )
+    if adapter then
+      check(adapter.name == name, ("registry: %s reports its own name"):format(name))
+      check(type(adapter.build_cmd) == "function", ("registry: %s has build_cmd"):format(name))
+      check(type(adapter.parse_line) == "function", ("registry: %s has parse_line"):format(name))
+      check(
+        adapter.build_resume_cmd == nil or type(adapter.build_resume_cmd) == "function",
+        ("registry: %s's optional build_resume_cmd is a function when present"):format(name)
+      )
+      check(
+        adapter.unsupported_modes == nil or type(adapter.unsupported_modes) == "table",
+        ("registry: %s's optional unsupported_modes is a table when present"):format(name)
+      )
+    end
+  end
+
   -- ── unsupported permission modes fail fast at spawn ──────────────────
   do
     local repo = assert(vim.uv.fs_mkdtemp(vim.uv.os_tmpdir() .. "/hangar-safe-XXXXXX"))

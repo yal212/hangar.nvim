@@ -37,14 +37,18 @@ function M.entries()
   return entries
 end
 
+---@param id string
 function M.open_transcript(id)
   require("hangar.ui.transcript").open(id)
 end
 
+---@param id string
 function M.open_review(id)
   require("hangar.ui.review").open(id)
 end
 
+---Prompt for feedback and spawn a follow-up run. No-op on an empty answer.
+---@param id string
 function M.iterate(id)
   vim.ui.input({ prompt = ("Feedback for %s: "):format(id) }, function(feedback)
     if not feedback or vim.trim(feedback) == "" then
@@ -59,6 +63,8 @@ function M.iterate(id)
   end)
 end
 
+---Delete a run's worktree and branch, after confirmation.
+---@param id string
 function M.discard(id)
   local choice = vim.fn.confirm(("Discard %s? Worktree and branch are deleted."):format(id), "&Yes\n&No", 2)
   if choice ~= 1 then

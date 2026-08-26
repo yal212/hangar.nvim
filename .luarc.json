@@ -1,5 +1,11 @@
 {
   "runtime.version": "LuaJIT",
+  // Resolve the plugin's own modules, so `require("hangar")` is the annotated
+  // init.lua rather than `any`. Without this, LuaLS silently checks nothing
+  // across module boundaries. The Lua defaults ("?.lua", "?/init.lua") are
+  // deliberately NOT re-listed: adding them shadows these and resolution
+  // regresses to nothing.
+  "runtime.path": ["lua/?.lua", "lua/?/init.lua"],
   "workspace.library": ["$VIMRUNTIME/lua"],
   "diagnostics.globals": ["vim"]
 }
