@@ -37,7 +37,7 @@ Run `:checkhealth hangar` to diagnose setup problems; it also reports the
 installed plugin version.
 
 Pin a release instead of tracking `main` (lazy.nvim): >lua
-    { "yal212/hangar.nvim", version = "^0.1", cmd = "Hangar", opts = {} }
+    { "yal212/hangar.nvim", version = "^0.2", cmd = "Hangar", opts = {} }
 <
 While 0.x, |hangar-config| option names and the adapter contract
 (|hangar-adapters|) are stable within a minor version; breaking changes
@@ -161,7 +161,7 @@ status_counts()                                       *hangar.status_counts()*
     Raw `{ running, queued, done, failed }` counts for custom formatting.
 
 version                                                       *hangar.version*
-    Installed plugin version as a string, e.g. "0.1.0". Also shown by
+    Installed plugin version as a string, e.g. "0.2.0". Also shown by
     `:checkhealth hangar`.
 
                                                           *hangar-autocmd*

@@ -43,7 +43,7 @@ lazy.nvim:
 To pin instead of tracking `main`:
 
 ```lua
-{ "yal212/hangar.nvim", version = "^0.1", cmd = "Hangar", opts = {} }
+{ "yal212/hangar.nvim", version = "^0.2", cmd = "Hangar", opts = {} }
 ```
 
 This resolves to the [latest release](https://github.com/yal212/hangar.nvim/releases/latest). While 0.x, `setup()` option names and the adapter contract are stable within a minor version; breaking changes bump the minor. `:checkhealth hangar` reports the installed version, and [CHANGELOG.md](CHANGELOG.md) records what changed.
