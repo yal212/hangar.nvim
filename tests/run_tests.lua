@@ -23,7 +23,7 @@ local coverage = vim.env.HANGAR_COVERAGE == "1" and pcall(require, "luacov")
 local harness = dofile(plugin_root .. "/tests/harness.lua")
 
 -- never touch the user's real run registry, even without XDG_DATA_HOME set
-require("hangar.runner")._set_state_dir(vim.uv.fs_mkdtemp(vim.uv.os_tmpdir() .. "/hangar-state-XXXXXX"))
+require("hangar.store").set_state_dir(assert(vim.uv.fs_mkdtemp(vim.uv.os_tmpdir() .. "/hangar-state-XXXXXX")))
 
 ---Value following `flag` in the argument list, or nil.
 local function arg_after(flag)
