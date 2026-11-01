@@ -51,6 +51,12 @@ names and the adapter contract are stable within a minor version; breaking chang
   character (CJK text, emoji, accented letters) and show `<e4><bf>`-style garbage in the
   dashboard, the pickers, transcript tool lines and notifications, or put invalid UTF-8 in
   auto-commit messages. Text is now cut only between characters.
+- The dashboard was sized one line short of its content, so with two or more runs the
+  key-hint line was hidden (more with best-of-n group headers), and it never grew as runs
+  were added. It now fits its content and resizes as rows come and go.
+- When rows moved under the cursor (a new run spawned, or a `status`/`cost` sort reordered
+  them as runs finished), the dashboard cursor stayed on the same line and so landed on a
+  different run, where `K` would kill it without asking. The cursor now stays on its run.
 - Rebase-and-retry no longer rebases the branch of a run that is still running, and merging
   a run whose branch an iteration took over now says so instead of failing inside git.
 

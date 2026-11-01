@@ -55,9 +55,35 @@ return function(harness)
     check((t:find("a2", 1, true)) < (t:find("a3", 1, true)), "dashboard: cost sort descends")
     check(t:find("2× group task", 1, true) ~= nil, "dashboard: groups stay blocks under sort")
     dashboard.cycle_sort() -- back to recent
+
+    -- the window fits its content, key hints included, and grows with new runs
+    local win = vim.api.nvim_get_current_win()
+    local function fits()
+      return vim.api.nvim_win_get_height(win) >= vim.api.nvim_buf_line_count(0)
+    end
+    local function line_of(id)
+      for lnum, l in ipairs(vim.api.nvim_buf_get_lines(0, 0, -1, false)) do
+        if l:find("%s" .. id .. "%s") then
+          return lnum
+        end
+      end
+    end
+    check(fits(), "dashboard: the window shows every line, key hints included")
+    local rows_before = vim.api.nvim_buf_line_count(0)
+
+    -- a newer run renders above the cursor's row and shifts it down; the
+    -- cursor must follow its run, or K would kill a different one
+    vim.api.nvim_win_set_cursor(win, { assert(line_of("a3")), 0 })
+    mk("a4", { status = "running", started = 200 })
+    dashboard.render(false)
+    check(vim.api.nvim_buf_line_count(0) > rows_before and fits(), "dashboard: the window grows when a run is added")
+    check(
+      vim.api.nvim_win_get_cursor(win)[1] == line_of("a3"),
+      "dashboard: the cursor stays on its run when the rows shift"
+    )
     dashboard.close()
 
-    for _, id in ipairs({ "a1", "a2", "a3", "g1", "g2" }) do
+    for _, id in ipairs({ "a1", "a2", "a3", "a4", "g1", "g2" }) do
       runner.runs[id] = nil
     end
     vim.fn.chdir(prev)
