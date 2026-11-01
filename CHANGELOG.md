@@ -8,6 +8,14 @@ names and the adapter contract are stable within a minor version; breaking chang
 
 ## [Unreleased]
 
+### Fixed
+
+- `:Hangar clean` run before anything else had loaded the run registry (a fresh Neovim
+  session with the dashboard never opened) saved an empty registry, wiping the records of
+  every repo's runs and leaking their worktrees and branches. `:Hangar kill <id>` typed
+  without `<Tab>` completion likewise answered "no such run". Every run operation now loads
+  the persisted registry first.
+
 ## [0.2.0] - 2026-08-26
 
 ### Fixed

@@ -91,6 +91,16 @@ function M.list(root)
   return out
 end
 
+---Forget the in-memory registry so the next call reloads it from disk, as a
+---fresh nvim session would. Clears `M.runs` in place: callers hold the table.
+---For tests only.
+function M._unload()
+  for id in pairs(M.runs) do
+    M.runs[id] = nil
+  end
+  loaded = false
+end
+
 function M.get(id)
   M.load()
   return M.runs[id]
@@ -395,6 +405,7 @@ end
 ---@return boolean ok
 ---@return string|nil err
 function M.kill(id)
+  M.load()
   local job = jobs[id]
   local run = M.runs[id]
   if not run then
@@ -580,6 +591,7 @@ end
 
 ---Forget a run and delete its worktree + branch.
 function M.discard(id)
+  M.load()
   local run = M.runs[id]
   if not run then
     return false, "no such run: " .. tostring(id)
@@ -599,6 +611,7 @@ end
 ---@return string|nil err
 ---@return { rebaseable: boolean }|nil meta on failure (see worktree.merge)
 function M.merge(id, strategy)
+  M.load()
   local run = M.runs[id]
   if not run then
     return false, "no such run: " .. tostring(id)
@@ -625,6 +638,7 @@ end
 ---@return boolean ok
 ---@return string|nil err
 function M.rebase_and_merge(id, strategy)
+  M.load()
   local run = M.runs[id]
   if not run then
     return false, "no such run: " .. tostring(id)
@@ -641,6 +655,8 @@ end
 ---Remove worktrees/branches of all non-running runs and drop them from the registry.
 ---@return integer count
 function M.clean(root)
+  -- load first: saving an unloaded registry would wipe every repo's runs
+  M.load()
   local count = 0
   for id, run in pairs(M.runs) do
     if run.root == root and run.status ~= "running" and run.status ~= "detached" then
