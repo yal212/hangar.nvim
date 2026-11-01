@@ -59,6 +59,19 @@ return function(harness)
     check(lvl == vim.log.levels.INFO, "notify: done notifies at INFO")
 
     ---@diagnostic disable-next-line: duplicate-set-field
+    vim.notify = function(m)
+      msg = m
+    end
+    run = mkrun()
+    run.error = "a" .. ("修"):rep(50)
+    runner._finish(run, 1)
+    vim.notify = orig_notify
+    check(
+      msg and vim.endswith(msg, ": a" .. ("修"):rep(39)),
+      "notify: a long multibyte error is cut on a character boundary"
+    )
+
+    ---@diagnostic disable-next-line: duplicate-set-field
     vim.notify = function(m, l)
       msg, lvl = m, l
     end

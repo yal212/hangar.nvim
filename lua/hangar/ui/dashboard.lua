@@ -43,12 +43,50 @@ function M.is_open()
   return is_open()
 end
 
+---Float geometry for a dashboard showing `height` lines, centred in the editor.
+---@param height integer content line count; clamped to the screen
+---@return vim.api.keyset.win_config
+local function geometry(height)
+  local width = math.min(vim.o.columns - 6, 110)
+  height = math.max(1, math.min(math.max(height, 7), vim.o.lines - 6))
+  return {
+    relative = "editor",
+    width = width,
+    height = height,
+    col = math.floor((vim.o.columns - width) / 2),
+    row = math.floor((vim.o.lines - height) / 2) - 1,
+  }
+end
+
 ---@param refresh_files boolean whether to re-run git for the files column
 function M.render(refresh_files)
   if not is_open() then
     return
   end
+  -- rows move as runs are added or re-sorted: remember which run the cursor is
+  -- on, not which line, or the next key press acts on a different run
+  local cursor = vim.api.nvim_win_get_cursor(state.win)
+  local cursor_run = state.line_runs[cursor[1]]
+
   render.render(state, refresh_files)
+
+  -- fit the window to the content, so the key hints never fall off the bottom
+  local want = geometry(vim.api.nvim_buf_line_count(state.buf))
+  local have = vim.api.nvim_win_get_config(state.win)
+  if have.height ~= want.height or have.width ~= want.width then
+    vim.api.nvim_win_set_config(state.win, want)
+  end
+
+  if cursor_run then
+    for lnum, id in pairs(state.line_runs) do
+      if id == cursor_run then
+        if lnum ~= cursor[1] then
+          vim.api.nvim_win_set_cursor(state.win, { lnum, cursor[2] })
+        end
+        break
+      end
+    end
+  end
 end
 
 ---Cycle the row ordering: recent (default) -> status -> cost.
@@ -114,19 +152,14 @@ function M.open()
   vim.bo[state.buf].bufhidden = "wipe"
   vim.bo[state.buf].filetype = "hangar"
 
-  local width = math.min(vim.o.columns - 6, 110)
-  local height = math.min(math.max(#runner.list(root) + 5, 7), vim.o.lines - 6)
-  state.win = vim.api.nvim_open_win(state.buf, true, {
-    relative = "editor",
-    width = width,
-    height = height,
-    col = math.floor((vim.o.columns - width) / 2),
-    row = math.floor((vim.o.lines - height) / 2) - 1,
+  -- a first guess at the height; M.render below sizes it to the real content
+  local config = vim.tbl_extend("force", geometry(#runner.list(root) + 6), {
     style = "minimal",
     border = "rounded",
     title = " hangar — " .. vim.fn.fnamemodify(root, ":t") .. " ",
     title_pos = "center",
   })
+  state.win = vim.api.nvim_open_win(state.buf, true, config)
   vim.wo[state.win].cursorline = true
 
   local map = function(lhs, fn)

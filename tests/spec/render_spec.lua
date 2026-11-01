@@ -127,10 +127,20 @@ return function(harness)
     "render: the sort cycle is recent -> status -> cost -> recent"
   )
 
-  for _, id in ipairs({ "r1", "r2", "r3", "r4", "r5" }) do
+  -- a long multibyte prompt is clipped between characters, not inside one
+  runner.runs["r6"] =
+    { id = "r6", root = root, status = "done", started = 60, events = {}, prompt = "a" .. ("修"):rep(20) }
+  local wide = new_state()
+  render.render(wide, false)
+  check(
+    table.concat(lines_of(wide), "\n"):find("a" .. ("修"):rep(13) .. "…", 1, true) ~= nil,
+    "render: a multibyte prompt is clipped on a character boundary"
+  )
+
+  for _, id in ipairs({ "r1", "r2", "r3", "r4", "r5", "r6" }) do
     runner.runs[id] = nil
   end
-  for _, s in ipairs({ empty, state, bare, cached, filtered }) do
+  for _, s in ipairs({ empty, state, bare, cached, filtered, wide }) do
     vim.api.nvim_buf_delete(s.buf, { force = true })
   end
 end

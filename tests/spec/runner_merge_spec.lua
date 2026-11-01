@@ -86,5 +86,101 @@ return function(harness)
     check(runner.rebase_and_merge("c3", "ff") == true, "conflict: rebase_and_merge lands the run")
     check(run3.status == "merged", "conflict: run marked merged after rebase-and-retry")
     runner.runs.c3 = nil
+
+    ---A run record over a fresh worktree, registered with the runner.
+    local function register(repo_path, id, fields)
+      local w = worktree.create(repo_path, id)
+      local r = vim.tbl_extend("force", {
+        id = id,
+        root = repo_path,
+        worktree = w.path,
+        branch = w.branch,
+        base = w.base,
+        prompt = "p",
+        status = "done",
+        started = 1,
+        events = {},
+      }, fields or {})
+      runner.runs[id] = r
+      return r
+    end
+
+    -- failed, killed and orphaned runs never reach finish()'s auto-commit, so
+    -- their edits sit uncommitted in the worktree. Review shows them; merging
+    -- must land them rather than merge an empty branch and delete the worktree.
+    for _, strategy in ipairs({ "squash", "ff", "merge" }) do
+      local r = mkrepo()
+      local id = "u" .. strategy
+      local u = register(r, id, { status = "failed" })
+      write(u.worktree .. "/agent.txt", "agent\n")
+      local uok, uerr = runner.merge(id, strategy)
+      check(
+        uok == true and vim.uv.fs_stat(r .. "/agent.txt") ~= nil,
+        ("uncommitted: a failed run's edits land with %s (%s)"):format(strategy, tostring(uerr))
+      )
+      runner.runs[id] = nil
+    end
+
+    -- a run that changed nothing is refused before anything is touched; with
+    -- ff/merge it used to "succeed" and delete the worktree
+    for _, strategy in ipairs({ "squash", "ff" }) do
+      local r = mkrepo()
+      local id = "e" .. strategy
+      local e = register(r, id)
+      local eok, eerr = runner.merge(id, strategy)
+      check(
+        eok == false and eerr ~= nil and eerr:find("no changes", 1, true) ~= nil,
+        "empty: a run with no changes is refused with " .. strategy
+      )
+      check(
+        vim.uv.fs_stat(e.worktree) ~= nil and e.status == "done",
+        "empty: the refused run keeps its worktree and status with " .. strategy
+      )
+      runner.runs[id] = nil
+    end
+
+    -- untracked files in the user's tree do not make it "dirty": git itself
+    -- refuses a merge that would overwrite one
+    local repo5 = mkrepo()
+    local t = register(repo5, "t1")
+    write(t.worktree .. "/agent.txt", "agent\n")
+    commit_all(t.worktree, "agent file")
+    write(repo5 .. "/notes.txt", "scratch\n")
+    local tok, terr = runner.merge("t1", "squash")
+    check(tok == true, "untracked: an untracked file does not block a merge (" .. tostring(terr) .. ")")
+    check(vim.uv.fs_stat(repo5 .. "/notes.txt") ~= nil, "untracked: the user's untracked file survives")
+    runner.runs.t1 = nil
+
+    -- an iteration takes over its predecessor's branch, leaving it none
+    runner.runs.s1 = { id = "s1", root = repo5, status = "done", base = "x", prompt = "p", started = 1, events = {} }
+    local sok, serr = runner.merge("s1")
+    check(sok == false and serr ~= nil and serr:find("no branch", 1, true) ~= nil, "guard: a run with no branch")
+    runner.runs.s1 = nil
+
+    -- rebase_and_merge must not rewrite a branch a live agent is working on
+    local repo6 = mkrepo()
+    local l = register(repo6, "l1", { status = "running" })
+    write(l.worktree .. "/agent.txt", "agent\n")
+    commit_all(l.worktree, "agent file")
+    write(repo6 .. "/user.txt", "user\n")
+    commit_all(repo6, "user file")
+    local l_sha = sh(l.worktree, { "git", "rev-parse", "HEAD" })
+    local lok, lerr = runner.rebase_and_merge("l1")
+    check(
+      lok == false and lerr ~= nil and lerr:find("still running", 1, true) ~= nil,
+      "guard: rebase_and_merge refuses a running run"
+    )
+    check(sh(l.worktree, { "git", "rev-parse", "HEAD" }) == l_sha, "guard: a running run's branch is not rebased")
+    runner.runs.l1 = nil
+
+    check(
+      worktree.commit_subject({ prompt = "fix it\n\nPrevious attempt feedback: more" })
+        == "hangar: fix it Previous attempt feedback: more",
+      "commit subject: the prompt is collapsed onto one line"
+    )
+    check(
+      worktree.commit_subject({ prompt = "a" .. ("修"):rep(30) }) == "hangar: a" .. ("修"):rep(23),
+      "commit subject: a multibyte prompt is cut on a character boundary"
+    )
   end
 end

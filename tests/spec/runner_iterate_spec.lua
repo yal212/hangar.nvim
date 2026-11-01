@@ -60,13 +60,29 @@ return function(harness)
     check(r4.status == "running" and r4.session_id == "sess-3", "iterate: resume run is live with the session")
     check(r4.prompt == "again", "iterate: resume prompt is just the feedback")
 
-    for _, r in ipairs({ r2, r4 }) do
+    -- group ids are unique in the registry: a best-of-n fleet or an iteration
+    -- lineage must not join an older group that happens to share the id
+    runner.runs.stale =
+      { id = "stale", root = "/x", status = "done", group = "gTEST", started = 1, events = {}, prompt = "p" }
+    check(runner.new_group_id("gTEST") == "gTEST-2", "group: a taken id gets a suffix")
+    check(runner.new_group_id("gFREE") == "gFREE", "group: a free id is used as is")
+    local r5 = assert(runner.spawn("lineage", vim.deepcopy(opts)))
+    runner.kill(r5.id)
+    vim.wait(10000, function()
+      return r5.exit_code ~= nil
+    end, 50)
+    runner.runs.stale.group = "i" .. r5.id -- an old lineage under a reused run id
+    local r6 = assert(runner.iterate(r5.id, "again"))
+    check(r5.group ~= "i" .. r5.id and r6.group == r5.group, "group: an iteration does not join an old lineage")
+    runner.runs.stale = nil
+
+    for _, r in ipairs({ r2, r4, r6 }) do
       runner.kill(r.id)
       vim.wait(10000, function()
         return r.exit_code ~= nil
       end, 50)
     end
-    for _, r in ipairs({ r1, r2, r3, r4 }) do
+    for _, r in ipairs({ r1, r2, r3, r4, r5, r6 }) do
       runner.discard(r.id)
     end
     vim.fn.chdir(prev)

@@ -50,8 +50,10 @@ M.config = {
 }
 
 ---Accepted shape per option. `types` is checked with type(); `values` (when
----present) restricts a string to a fixed set. Every key here must also exist in
----M.config — the two are cross-checked by scripts/check-docs.lua.
+---present) restricts a string to a fixed set; `check` (when present) is a
+---predicate on a value of the right type, described by `expect`. Every key here
+---must also exist in M.config — the two are cross-checked by
+---scripts/check-docs.lua.
 local SCHEMA = {
   default_permission = { types = { "string" }, values = { yolo = true, safe = true } },
   merge = { types = { "string" }, values = { squash = true, ff = true, merge = true } },
@@ -60,7 +62,14 @@ local SCHEMA = {
   adapter = { types = { "string" } },
   adapters = { types = { "table" } },
   notify = { types = { "boolean", "function" } },
-  max_concurrent = { types = { "number" } },
+  max_concurrent = {
+    types = { "number" },
+    -- 0 would park every spawn in the queue forever
+    check = function(n)
+      return n >= 1 and n == math.floor(n)
+    end,
+    expect = "a whole number >= 1",
+  },
 }
 
 ---Validate a user-supplied options table. Returns the problems as a list of
@@ -72,12 +81,14 @@ local SCHEMA = {
 ---and CI tests both ends of that range.
 ---@param opts table
 ---@return string[] problems
+---@return table<any, true> rejected the keys behind those problems
 local function validate(opts)
-  local problems = {}
+  local problems, rejected = {}, {}
   local known = vim.tbl_keys(SCHEMA)
   table.sort(known)
   for key, value in pairs(opts) do
     local rule = SCHEMA[key]
+    local before = #problems
     if not rule then
       local hint = ""
       -- a near-miss is almost always a typo, so name the likely intent
@@ -106,10 +117,15 @@ local function validate(opts)
         table.concat(allowed, ", "),
         value
       )
+    elseif rule.check and not rule.check(value) then
+      problems[#problems + 1] = ("option %q must be %s (got %s)"):format(key, rule.expect, tostring(value))
+    end
+    if #problems > before then
+      rejected[key] = true
     end
   end
   table.sort(problems)
-  return problems
+  return problems, rejected
 end
 
 M._SCHEMA = SCHEMA -- exposed for tests and scripts/check-docs.lua
@@ -122,15 +138,24 @@ function M.setup(opts)
     util.notify_err("setup() expects a table of options")
     return
   end
-  for _, problem in ipairs(validate(opts)) do
+  local problems, rejected = validate(opts)
+  for _, problem in ipairs(problems) do
     util.notify_err("setup(): " .. problem)
   end
-  if opts.claude_cmd ~= nil then
+  -- a rejected option keeps its previous value: reporting it and then
+  -- applying it anyway would leave the plugin running on the bad value
+  local accepted = {}
+  for key, value in pairs(opts) do
+    if not rejected[key] then
+      accepted[key] = value
+    end
+  end
+  if accepted.claude_cmd ~= nil then
     util.notify_warn(
       "config.claude_cmd is deprecated and will be removed in 0.3.0 — use adapters = { claude_code = { cmd = ... } }"
     )
   end
-  M.config = vim.tbl_deep_extend("force", M.config, opts)
+  M.config = vim.tbl_deep_extend("force", M.config, accepted)
 end
 
 ---Statusline component: "hangar 2● 1✓" (running / awaiting review), "" when idle.
@@ -223,12 +248,22 @@ function M.spawn(prompt, opts)
       util.notify_err(err)
       return
     end
-    util.notify(("spawned run %s on branch %s"):format(run.id, run.branch))
+    if run.status == "queued" then
+      -- no worktree or branch yet: those are created when the run leaves the queue
+      util.notify(
+        ("queued run %s — it starts when a slot frees up (max_concurrent = %d)"):format(
+          run.id,
+          M.config.max_concurrent
+        )
+      )
+    else
+      util.notify(("spawned run %s on branch %s"):format(run.id, run.branch))
+    end
     return run
   end
 
   -- best-of-n: same prompt, n isolated attempts sharing a group id
-  local group = os.date("g%H%M%S")
+  local group = runner.new_group_id()
   local runs = {}
   for attempt = 1, n do
     local run, err = runner.spawn(prompt, vim.tbl_extend("force", opts, { group = group, attempt = attempt }))

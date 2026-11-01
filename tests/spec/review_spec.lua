@@ -101,6 +101,29 @@ return function(harness)
   check(empty:find("  (no changes)", 1, true) ~= nil, "review: an untouched run says so explicitly")
   vim.api.nvim_win_close(empty_win, true)
 
+  -- m runs the dashboard's merge flow (confirm, rebase-and-retry on conflict,
+  -- discard the sibling attempts) rather than a bare merge of its own
+  local actions = require("hangar.ui.actions")
+  local orig_merge, orig_confirm = actions.merge, vim.fn.confirm
+  local merged_via
+  ---@diagnostic disable-next-line: duplicate-set-field
+  actions.merge = function(r)
+    merged_via = r
+  end
+  ---@diagnostic disable-next-line: duplicate-set-field
+  vim.fn.confirm = function()
+    return 2 -- decline anything the old direct path would ask
+  end
+  review.open("rv2")
+  local merge_win = vim.api.nvim_get_current_win()
+  vim.fn.maparg("m", "n", false, true).callback()
+  actions.merge, vim.fn.confirm = orig_merge, orig_confirm
+  check(merged_via ~= nil and merged_via.id == "rv2", "review: m hands the run to the dashboard's merge action")
+  check(not vim.api.nvim_win_is_valid(merge_win), "review: m closes the float first")
+  if vim.api.nvim_win_is_valid(merge_win) then
+    vim.api.nvim_win_close(merge_win, true)
+  end
+
   -- a queued run refuses at the door instead of erroring on a nil base
   runner.runs["rv3"] = { id = "rv3", root = root, status = "queued", started = 12, events = {}, prompt = "waiting" }
   local notified

@@ -71,6 +71,23 @@ package.preload["hangar.adapters.fakeresume"] = function()
   }
 end
 
+-- an agent CLI that is not installed: vim.system cannot even start it
+M.MISSING_EXE = "hangar-test-no-such-agent-cli"
+package.preload["hangar.adapters.missing"] = function()
+  return {
+    name = "missing",
+    build_cmd = function()
+      return { M.MISSING_EXE }
+    end,
+    build_resume_cmd = function()
+      return { M.MISSING_EXE }
+    end,
+    parse_line = function()
+      return nil
+    end,
+  }
+end
+
 -- Pristine config, captured before any spec mutates it. Specs call
 -- hangar.setup(), which merges rather than replaces, so without an explicit
 -- reset the notify/max_concurrent settings of one spec leak into the next and

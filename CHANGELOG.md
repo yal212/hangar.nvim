@@ -8,6 +8,68 @@ names and the adapter contract are stable within a minor version; breaking chang
 
 ## [Unreleased]
 
+### Changed
+
+- `setup()` now ignores the options it reports as invalid, so they keep their previous
+  values. Before, it reported a bad value and then applied it anyway. `max_concurrent`
+  must also be a whole number >= 1: `0` used to be accepted silently, and then every
+  spawn queued forever.
+
+### Fixed
+
+- `:Hangar clean` run before anything else had loaded the run registry (a fresh Neovim
+  session with the dashboard never opened) saved an empty registry, wiping the records of
+  every repo's runs and leaking their worktrees and branches. `:Hangar kill <id>` typed
+  without `<Tab>` completion likewise answered "no such run". Every run operation now loads
+  the persisted registry first.
+- Merging a failed, killed or orphaned run lost its work. Only runs that finish "done" are
+  auto-committed, so these runs' edits sat uncommitted in the worktree. Review showed them,
+  but the merge took the empty branch: with `merge = "ff"` or `"merge"` it reported success
+  and then deleted the worktree, edits and all. With `"squash"` it failed with a blank
+  "commit after squash failed:" error. Leftover edits are now committed to the run's branch
+  before merging.
+- Merging a run that changed nothing is now refused with "run has no changes to merge",
+  instead of failing obscurely (squash) or deleting the worktree (ff/merge).
+- An untracked file anywhere in your working tree blocked every merge as "dirty". Only
+  tracked changes count now; git still refuses a merge that would overwrite an untracked
+  file.
+- Spawning with an agent CLI that is not installed raised a Lua error and left the run stuck
+  as "running" with no process behind it: `K` said it was not running, `x` said it was
+  still running, it held a `max_concurrent` slot for the rest of the session, and its
+  worktree leaked. The spawn now fails with "could not start <cli>" and leaves nothing
+  behind; a queued run that hits this when its turn comes is marked failed, and a failed
+  resume or iterate leaves the original run as it was.
+- The last line of an agent's output stream was dropped when it had no trailing newline.
+  That line is usually the final result, so the run lost its cost and turn count, and a
+  failed result could even be recorded as "done".
+- With `max_concurrent` set, runs queued within the same second (a `--n` fleet, or quick
+  successive spawns) left the queue in arbitrary order rather than oldest-first.
+- Discarding a run while its transcript was open raised an error from the transcript's
+  update handler. The transcript now keeps what it showed and adds a note that the run was
+  discarded.
+- Long prompts and tool output were cut at a byte count, which could split a multibyte
+  character (CJK text, emoji, accented letters) and show `<e4><bf>`-style garbage in the
+  dashboard, the pickers, transcript tool lines and notifications, or put invalid UTF-8 in
+  auto-commit messages. Text is now cut only between characters.
+- The dashboard was sized one line short of its content, so with two or more runs the
+  key-hint line was hidden (more with best-of-n group headers), and it never grew as runs
+  were added. It now fits its content and resizes as rows come and go.
+- When rows moved under the cursor (a new run spawned, or a `status`/`cost` sort reordered
+  them as runs finished), the dashboard cursor stayed on the same line and so landed on a
+  different run, where `K` would kill it without asking. The cursor now stays on its run.
+- Spawning past `max_concurrent` announced "spawned run X on branch nil". It now says the
+  run is queued and will start when a slot frees up.
+- Best-of-n group ids came from the clock time alone, so a fleet started at the same time
+  of day as an older one still in the registry joined its group. The dashboard merged the
+  two, and merging one run offered to discard the other fleet's attempts. Iteration
+  lineages had the same problem once a run id was reused. Group ids are now unique in the
+  registry.
+- `m` in the review float merged directly. When the merge conflicted it reported the error
+  instead of offering rebase-and-retry, and after merging a best-of-n attempt it never
+  offered to discard the siblings. It now runs the same merge flow as the dashboard's `m`.
+- Rebase-and-retry no longer rebases the branch of a run that is still running, and merging
+  a run whose branch an iteration took over now says so instead of failing inside git.
+
 ## [0.2.0] - 2026-08-26
 
 ### Fixed

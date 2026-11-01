@@ -4,6 +4,7 @@
 ---UI layers subscribe via `User HangarRunUpdate` autocmds (data = { id }).
 local worktree = require("hangar.worktree")
 local store = require("hangar.store")
+local utf8_prefix = require("hangar.util").utf8_prefix
 
 local M = {}
 
@@ -91,20 +92,57 @@ function M.list(root)
   return out
 end
 
+---Forget the in-memory registry so the next call reloads it from disk, as a
+---fresh nvim session would. Clears `M.runs` in place: callers hold the table.
+---For tests only.
+function M._unload()
+  for id in pairs(M.runs) do
+    M.runs[id] = nil
+  end
+  loaded = false
+end
+
 function M.get(id)
   M.load()
   return M.runs[id]
 end
 
-local function short_id()
-  local base = tostring(os.date("%H%M%S"))
-  local id = base
-  local n = 1
-  while M.runs[id] do
+---`base`, or the first of `base-2`, `base-3`, ... that `taken` does not claim.
+---@param base string
+---@param taken fun(candidate: string): boolean
+---@return string
+local function unique(base, taken)
+  local id, n = base, 1
+  while taken(id) do
     n = n + 1
     id = base .. "-" .. n
   end
   return id
+end
+
+local function short_id()
+  return unique(tostring(os.date("%H%M%S")), function(id)
+    return M.runs[id] ~= nil
+  end)
+end
+
+---A group id no run in the registry uses yet. Ids are built from clock times
+---and run ids, both of which repeat (the same time on another day, a run id
+---reused after a discard); joining an old group would merge two fleets in the
+---dashboard, and merging one run would offer to discard the other fleet's.
+---@param base string|nil defaults to "g" + the current time
+---@return string
+function M.new_group_id(base)
+  M.load()
+  local used = {}
+  for _, run in pairs(M.runs) do
+    if run.group then
+      used[run.group] = true
+    end
+  end
+  return unique(base or tostring(os.date("g%H%M%S")), function(group)
+    return used[group] == true
+  end)
 end
 
 ---Apply one normalized adapter event to the run's state + transcript.
@@ -168,12 +206,29 @@ local function notify_finish(run)
     msg = msg .. (" ($%.2f)"):format(run.cost)
   end
   if run.status == "failed" and run.error then
-    msg = msg .. ": " .. run.error:sub(1, 120)
+    msg = msg .. ": " .. utf8_prefix(run.error, 120)
   end
   vim.notify(msg, run.status == "done" and vim.log.levels.INFO or vim.log.levels.ERROR)
 end
 
 local promote_queued -- forward declaration; defined after start_run below
+
+---Spawn order of the runs created this session. `started` has one-second
+---resolution, so same-second spawns (a --n fleet, quick successive spawns)
+---need this to leave the queue oldest-first. Not persisted: a queued run never
+---survives a restart (see store.load).
+local spawn_seq, last_seq = {}, 0
+
+---Queue order: earlier `started` first, spawn order within the same second.
+---@param a hangar.Run
+---@param b hangar.Run
+---@return boolean
+local function queued_before(a, b)
+  if a.started ~= b.started then
+    return a.started < b.started
+  end
+  return (spawn_seq[a.id] or 0) < (spawn_seq[b.id] or 0)
+end
 
 local function finish(run, code)
   run.exit_code = code
@@ -183,7 +238,7 @@ local function finish(run, code)
       run.status = "done"
       if worktree.is_dirty(run) then
         -- claude -p doesn't commit unless told; commit so the branch is mergeable
-        local ok, err = pcall(worktree.commit_all, run, ("hangar: %s"):format(run.prompt:sub(1, 72)))
+        local ok, err = pcall(worktree.commit_all, run, worktree.commit_subject(run))
         if not ok then
           run.status = "failed"
           run.error = "auto-commit failed: " .. tostring(err)
@@ -221,30 +276,40 @@ end
 ---@field attempt integer|nil attempt index within the group
 
 ---Launch the agent process for a run whose worktree already exists, wiring
----stdout through the adapter's parser into the run's transcript.
+---stdout through the adapter's parser into the run's transcript. Leaves the
+---run untouched when the process cannot be started (e.g. the CLI is not
+---installed): marking it "running" first would strand a record no job backs,
+---which can be neither killed nor discarded.
 ---@param run hangar.Run
 ---@param adapter table
 ---@param cmd string[]
+---@return boolean ok
+---@return string|nil err
 local function start_job(run, adapter, cmd)
-  run.status = "running"
-  run.started = os.time()
   local carry = "" -- partial stream-json line between stdout chunks
-  local sysobj = vim.system(cmd, {
+  local started, sysobj = pcall(vim.system, cmd, {
     cwd = run.worktree,
     text = true,
     stdout = function(_, data)
-      if not data then
-        return
-      end
-      carry = carry .. data
-      local batch = {}
-      while true do
-        local nl = carry:find("\n", 1, true)
-        if not nl then
-          break
+      local lines = {}
+      if data then
+        carry = carry .. data
+        while true do
+          local nl = carry:find("\n", 1, true)
+          if not nl then
+            break
+          end
+          lines[#lines + 1] = carry:sub(1, nl - 1)
+          carry = carry:sub(nl + 1)
         end
-        local line = carry:sub(1, nl - 1)
-        carry = carry:sub(nl + 1)
+      elseif carry ~= "" then
+        -- EOF: a last line with no trailing newline is still a line. This is
+        -- scheduled ahead of finish(), which vim.system only calls once the
+        -- pipes have closed.
+        lines[1], carry = carry, ""
+      end
+      local batch = {}
+      for _, line in ipairs(lines) do
         local ev = adapter.parse_line(line)
         if ev then
           batch[#batch + 1] = ev
@@ -269,8 +334,14 @@ local function start_job(run, adapter, cmd)
       finish(run, res.code)
     end)
   end)
+  if not started then
+    return false, ("could not start %s: %s (see :checkhealth hangar)"):format(tostring(cmd[1]), tostring(sysobj))
+  end
+  run.status = "running"
+  run.started = os.time()
   jobs[run.id] = sysobj
   run.pid = sysobj.pid
+  return true
 end
 
 ---Executable override for an adapter from config (incl. the deprecated
@@ -304,7 +375,12 @@ local function start_run(run)
     cmd = cmd_override_for(run.adapter),
     cwd = wt.path,
   })
-  start_job(run, adapter, cmd)
+  local started, err = start_job(run, adapter, cmd)
+  if not started then
+    worktree.remove(run)
+    run.worktree, run.branch, run.base = nil, nil, nil
+    return false, err
+  end
   return true
 end
 
@@ -317,7 +393,7 @@ promote_queued = function()
     end
     local next_run
     for _, run in pairs(M.runs) do
-      if run.status == "queued" and (not next_run or run.started < next_run.started) then
+      if run.status == "queued" and (not next_run or queued_before(run, next_run)) then
         next_run = run
       end
     end
@@ -378,6 +454,8 @@ function M.spawn(prompt, opts)
     attempt = opts.attempt,
   }
   M.runs[id] = run
+  last_seq = last_seq + 1
+  spawn_seq[id] = last_seq
 
   if not (config.max_concurrent and count_running() >= config.max_concurrent) then
     local ok, serr = start_run(run)
@@ -395,6 +473,7 @@ end
 ---@return boolean ok
 ---@return string|nil err
 function M.kill(id)
+  M.load()
   local job = jobs[id]
   local run = M.runs[id]
   if not run then
@@ -461,8 +540,11 @@ function M.resume(id)
     cmd = cmd_override_for(run.adapter),
     cwd = run.worktree,
   })
+  local started, serr = start_job(run, adapter, cmd) -- resumes bypass max_concurrent by design
+  if not started then
+    return false, serr
+  end
   run.finished, run.exit_code, run.result_is_error, run.error = nil, nil, nil, nil
-  start_job(run, adapter, cmd) -- resumes bypass max_concurrent by design
   M.save()
   notify_update(id)
   return true
@@ -520,7 +602,7 @@ function M.iterate(id, feedback)
 
   -- shared group renders the iteration lineage in the dashboard
   if not run.group then
-    run.group = "i" .. run.id
+    run.group = M.new_group_id("i" .. run.id)
     run.attempt = 1
   end
   local attempt = 1
@@ -572,7 +654,12 @@ function M.iterate(id, feedback)
     cmd = cmd_override_for(new_run.adapter),
     cwd = new_run.worktree,
   })
-  start_job(new_run, adapter, cmd)
+  local started, serr = start_job(new_run, adapter, cmd)
+  if not started then
+    M.runs[new_id] = nil
+    run.worktree, run.branch = new_run.worktree, new_run.branch
+    return nil, serr
+  end
   M.save()
   notify_update(new_id)
   return new_run
@@ -580,6 +667,7 @@ end
 
 ---Forget a run and delete its worktree + branch.
 function M.discard(id)
+  M.load()
   local run = M.runs[id]
   if not run then
     return false, "no such run: " .. tostring(id)
@@ -594,20 +682,59 @@ function M.discard(id)
   return true
 end
 
+---Why a run's branch cannot be merged (or rebased) right now; nil when it can.
+---@param run hangar.Run
+---@return string|nil reason
+local function unmergeable(run)
+  if run.status == "running" or run.status == "detached" then
+    return "run " .. run.id .. " is still running"
+  end
+  if run.status == "queued" then
+    return "run " .. run.id .. " has not started yet"
+  end
+  if run.status == "merged" then
+    return "run " .. run.id .. " is already merged"
+  end
+  if not run.branch then
+    -- an iteration took the branch over (see M.iterate)
+    return "run " .. run.id .. " has no branch to merge"
+  end
+end
+
+---Commit edits a run left uncommitted, so a merge carries everything review
+---showed. Only runs that end "done" get finish()'s auto-commit; failed, killed
+---and orphaned ones leave their work in the worktree.
+---@param run hangar.Run
+---@return boolean ok
+---@return string|nil err
+local function commit_pending(run)
+  if not (run.worktree and vim.uv.fs_stat(run.worktree)) or not worktree.is_dirty(run) then
+    return true
+  end
+  local ok, err = pcall(worktree.commit_all, run, worktree.commit_subject(run))
+  if not ok then
+    return false, "could not commit the run's uncommitted changes: " .. tostring(err)
+  end
+  return true
+end
+
 ---Merge a finished run, then clean up its worktree + branch.
 ---@return boolean ok
 ---@return string|nil err
 ---@return { rebaseable: boolean }|nil meta on failure (see worktree.merge)
 function M.merge(id, strategy)
+  M.load()
   local run = M.runs[id]
   if not run then
     return false, "no such run: " .. tostring(id)
   end
-  if run.status == "running" or run.status == "detached" then
-    return false, "run " .. id .. " is still running"
+  local why = unmergeable(run)
+  if why then
+    return false, why
   end
-  if run.status == "queued" then
-    return false, "run " .. id .. " has not started yet"
+  local cok, cerr = commit_pending(run)
+  if not cok then
+    return false, cerr
   end
   local ok, err, meta = worktree.merge(run, strategy or require("hangar").config.merge)
   if not ok then
@@ -625,9 +752,18 @@ end
 ---@return boolean ok
 ---@return string|nil err
 function M.rebase_and_merge(id, strategy)
+  M.load()
   local run = M.runs[id]
   if not run then
     return false, "no such run: " .. tostring(id)
+  end
+  local why = unmergeable(run)
+  if why then
+    return false, why
+  end
+  local cok, cerr = commit_pending(run) -- git refuses to rebase a dirty worktree
+  if not cok then
+    return false, cerr
   end
   local ok, err = worktree.rebase_onto_head(run)
   if not ok then
@@ -641,6 +777,8 @@ end
 ---Remove worktrees/branches of all non-running runs and drop them from the registry.
 ---@return integer count
 function M.clean(root)
+  -- load first: saving an unloaded registry would wipe every repo's runs
+  M.load()
   local count = 0
   for id, run in pairs(M.runs) do
     if run.root == root and run.status ~= "running" and run.status ~= "detached" then

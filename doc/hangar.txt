@@ -87,7 +87,11 @@ across the repo's runs. Updates live. Keys:
           If the merge fails because the branches conflict or diverged,
           offers to rebase the run branch onto your HEAD (inside its own
           worktree — your tree is never touched) and retry; declining
-          leaves everything as it was
+          leaves everything as it was. Edits a failed, killed or orphaned
+          run left uncommitted are committed to its branch first, so the
+          merge carries everything `d` showed. A run with no changes is
+          refused. Untracked files in your tree do not block a merge
+          (git still refuses one that would overwrite them)
   x       discard: delete worktree + branch, forget the run (confirm first)
   i       iterate: prompt for feedback and spawn a follow-up run. Where the
           adapter supports resume (|hangar-adapters|), the follow-up
@@ -140,13 +144,15 @@ max_concurrent ~
     worktree yet) and start oldest-first as running runs finish or are
     killed. Killing a queued run drops it from the queue. Queued runs
     that survive an nvim restart are marked killed, never auto-started.
-    nil (the default) means unlimited.
+    A whole number >= 1; nil (the default) means unlimited.
 
 ==============================================================================
 6. LUA API                                                        *hangar-api*
 
 setup({opts})                                                 *hangar.setup()*
-    Apply configuration (|hangar-config|). Optional; defaults work.
+    Apply configuration (|hangar-config|). Optional; defaults work. An
+    unknown option or an invalid value is reported by name and ignored,
+    so that option keeps its previous value.
 
 spawn({prompt}, {opts})                                       *hangar.spawn()*
     Spawn a run. {opts}: `permission_mode` ("bypassPermissions" or

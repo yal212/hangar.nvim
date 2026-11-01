@@ -161,7 +161,7 @@ purpose — CLIs add them over time) or one event:
    event kind, using your captured lines verbatim, plus the blank/garbage-line cases.
 5. Document the adapter in `README.md` and `doc/hangar.txt`; `make docs` fails until you do.
 6. Verify a real run: `make integration ADAPTERS="<name>"`.
-6. Add a row to the permission table in the README and mention the adapter in `doc/hangar.txt`.
+7. Add a row to the permission table in the README and mention the adapter in `doc/hangar.txt`.
 
 The registry (`lua/hangar/adapters/init.lua`) discovers adapters from the runtimepath and validates
 the contract, so there is nothing to register by hand.

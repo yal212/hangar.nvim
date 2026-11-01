@@ -157,17 +157,10 @@ function M.open(run_id)
     end
   end)
   map("m", function()
-    local strategy = require("hangar").config.merge
-    if vim.fn.confirm(("Merge %s (%s)?"):format(run.id, strategy), "&Yes\n&No", 2) ~= 1 then
-      return
-    end
-    local ok, err = runner.merge(run.id)
+    -- the dashboard's merge flow: confirm, offer rebase-and-retry on a conflict,
+    -- and offer to discard a best-of-n run's sibling attempts
     close()
-    if ok then
-      util.notify(("merged %s"):format(run.id))
-    else
-      util.notify_err(err)
-    end
+    require("hangar.ui.actions").merge(run)
   end)
   map("x", function()
     if vim.fn.confirm(("Discard %s? Worktree and branch are deleted."):format(run.id), "&Yes\n&No", 2) ~= 1 then
