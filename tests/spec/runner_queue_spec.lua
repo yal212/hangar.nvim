@@ -23,6 +23,24 @@ return function(harness)
     check(r3.status == "queued", "queue: further spawns keep queueing")
     check(require("hangar.status").text():find("◌", 1, true) ~= nil, "queue: statusline shows queued count")
 
+    -- the spawn notification for a queued run has no branch to name yet
+    local said
+    local orig_notify = vim.notify
+    ---@diagnostic disable-next-line: duplicate-set-field
+    vim.notify = function(m)
+      said = m
+    end
+    local api_run = hangar.spawn("via the api", vim.deepcopy(opts))
+    vim.notify = orig_notify
+    check(
+      said ~= nil and said:find("queued", 1, true) ~= nil and said:find("nil", 1, true) == nil,
+      "queue: a queued spawn says it is queued (" .. tostring(said) .. ")"
+    )
+    if api_run and api_run.id then
+      runner.kill(api_run.id)
+      runner.discard(api_run.id)
+    end
+
     local ok = runner.kill(r3.id)
     check(ok and r3.status == "killed", "queue: queued run can be killed without a job")
     local dok = runner.discard(r3.id)

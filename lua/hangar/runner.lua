@@ -107,15 +107,42 @@ function M.get(id)
   return M.runs[id]
 end
 
-local function short_id()
-  local base = tostring(os.date("%H%M%S"))
-  local id = base
-  local n = 1
-  while M.runs[id] do
+---`base`, or the first of `base-2`, `base-3`, ... that `taken` does not claim.
+---@param base string
+---@param taken fun(candidate: string): boolean
+---@return string
+local function unique(base, taken)
+  local id, n = base, 1
+  while taken(id) do
     n = n + 1
     id = base .. "-" .. n
   end
   return id
+end
+
+local function short_id()
+  return unique(tostring(os.date("%H%M%S")), function(id)
+    return M.runs[id] ~= nil
+  end)
+end
+
+---A group id no run in the registry uses yet. Ids are built from clock times
+---and run ids, both of which repeat (the same time on another day, a run id
+---reused after a discard); joining an old group would merge two fleets in the
+---dashboard, and merging one run would offer to discard the other fleet's.
+---@param base string|nil defaults to "g" + the current time
+---@return string
+function M.new_group_id(base)
+  M.load()
+  local used = {}
+  for _, run in pairs(M.runs) do
+    if run.group then
+      used[run.group] = true
+    end
+  end
+  return unique(base or tostring(os.date("g%H%M%S")), function(group)
+    return used[group] == true
+  end)
 end
 
 ---Apply one normalized adapter event to the run's state + transcript.
@@ -575,7 +602,7 @@ function M.iterate(id, feedback)
 
   -- shared group renders the iteration lineage in the dashboard
   if not run.group then
-    run.group = "i" .. run.id
+    run.group = M.new_group_id("i" .. run.id)
     run.attempt = 1
   end
   local attempt = 1

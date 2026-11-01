@@ -248,12 +248,22 @@ function M.spawn(prompt, opts)
       util.notify_err(err)
       return
     end
-    util.notify(("spawned run %s on branch %s"):format(run.id, run.branch))
+    if run.status == "queued" then
+      -- no worktree or branch yet: those are created when the run leaves the queue
+      util.notify(
+        ("queued run %s — it starts when a slot frees up (max_concurrent = %d)"):format(
+          run.id,
+          M.config.max_concurrent
+        )
+      )
+    else
+      util.notify(("spawned run %s on branch %s"):format(run.id, run.branch))
+    end
     return run
   end
 
   -- best-of-n: same prompt, n isolated attempts sharing a group id
-  local group = os.date("g%H%M%S")
+  local group = runner.new_group_id()
   local runs = {}
   for attempt = 1, n do
     local run, err = runner.spawn(prompt, vim.tbl_extend("force", opts, { group = group, attempt = attempt }))

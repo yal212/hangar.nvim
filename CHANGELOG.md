@@ -57,6 +57,13 @@ names and the adapter contract are stable within a minor version; breaking chang
 - When rows moved under the cursor (a new run spawned, or a `status`/`cost` sort reordered
   them as runs finished), the dashboard cursor stayed on the same line and so landed on a
   different run, where `K` would kill it without asking. The cursor now stays on its run.
+- Spawning past `max_concurrent` announced "spawned run X on branch nil". It now says the
+  run is queued and will start when a slot frees up.
+- Best-of-n group ids came from the clock time alone, so a fleet started at the same time
+  of day as an older one still in the registry joined its group. The dashboard merged the
+  two, and merging one run offered to discard the other fleet's attempts. Iteration
+  lineages had the same problem once a run id was reused. Group ids are now unique in the
+  registry.
 - Rebase-and-retry no longer rebases the branch of a run that is still running, and merging
   a run whose branch an iteration took over now says so instead of failing inside git.
 
