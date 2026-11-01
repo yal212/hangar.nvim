@@ -84,6 +84,15 @@ function M.is_dirty(run)
   return res.code == 0 and res.stdout ~= ""
 end
 
+---Commit subject for a run's changes: "hangar: " plus the prompt on one line.
+---Shared by the auto-commit when a run finishes and the squash merge.
+---@param run { prompt: string|nil, branch: string|nil }
+---@return string
+function M.commit_subject(run)
+  local prompt = vim.trim(((run.prompt or run.branch or ""):gsub("%s+", " ")))
+  return "hangar: " .. prompt:sub(1, 72)
+end
+
 ---Commit everything in the run's worktree.
 ---@param run table
 ---@param msg string
@@ -149,9 +158,18 @@ end
 ---@return { rebaseable: boolean }|nil meta on failure: whether rebasing the
 ---run branch onto HEAD (see |M.rebase_onto_head|) could make the merge work
 function M.merge(run, strategy)
-  local dirty = git(run.root, { "status", "--porcelain" })
+  -- untracked files don't count: git itself refuses a merge that would
+  -- overwrite one, and blocking on any stray scratch file is just friction
+  local dirty = git(run.root, { "status", "--porcelain", "--untracked-files=no" })
   if dirty.stdout ~= "" then
     return false, "your working tree is dirty; commit or stash before merging"
+  end
+  -- an empty branch "merges" cleanly under ff/merge and fails obscurely under
+  -- squash (nothing to commit); either way the caller would then delete the
+  -- worktree, so refuse before touching anything
+  local ahead = git(run.root, { "rev-list", "--count", "HEAD.." .. run.branch })
+  if ahead.code == 0 and ahead.stdout == "0" then
+    return false, "run has no changes to merge"
   end
   if strategy == "squash" then
     local res = git(run.root, { "merge", "--squash", run.branch })
@@ -162,11 +180,11 @@ function M.merge(run, strategy)
       git(run.root, { "reset", "--merge" })
       return false, "squash merge failed: " .. res.stderr, { rebaseable = conflicted }
     end
-    local msg = ("hangar: %s"):format((run.prompt or run.branch):sub(1, 72))
-    local commit = git(run.root, { "commit", "-m", msg, "--no-verify" })
+    local commit = git(run.root, { "commit", "-m", M.commit_subject(run), "--no-verify" })
     if commit.code ~= 0 then
       git(run.root, { "reset", "--merge" })
-      return false, "commit after squash failed: " .. commit.stderr
+      -- git reports "nothing to commit" on stdout, not stderr
+      return false, "commit after squash failed: " .. (commit.stderr ~= "" and commit.stderr or commit.stdout)
     end
   else
     local flag = strategy == "ff" and "--ff-only" or "--no-ff"

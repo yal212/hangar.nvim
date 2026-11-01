@@ -15,6 +15,19 @@ names and the adapter contract are stable within a minor version; breaking chang
   every repo's runs and leaking their worktrees and branches. `:Hangar kill <id>` typed
   without `<Tab>` completion likewise answered "no such run". Every run operation now loads
   the persisted registry first.
+- Merging a failed, killed or orphaned run lost its work. Only runs that finish "done" are
+  auto-committed, so these runs' edits sat uncommitted in the worktree. Review showed them,
+  but the merge took the empty branch: with `merge = "ff"` or `"merge"` it reported success
+  and then deleted the worktree, edits and all. With `"squash"` it failed with a blank
+  "commit after squash failed:" error. Leftover edits are now committed to the run's branch
+  before merging.
+- Merging a run that changed nothing is now refused with "run has no changes to merge",
+  instead of failing obscurely (squash) or deleting the worktree (ff/merge).
+- An untracked file anywhere in your working tree blocked every merge as "dirty". Only
+  tracked changes count now; git still refuses a merge that would overwrite an untracked
+  file.
+- Rebase-and-retry no longer rebases the branch of a run that is still running, and merging
+  a run whose branch an iteration took over now says so instead of failing inside git.
 
 ## [0.2.0] - 2026-08-26
 

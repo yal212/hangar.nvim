@@ -87,7 +87,11 @@ across the repo's runs. Updates live. Keys:
           If the merge fails because the branches conflict or diverged,
           offers to rebase the run branch onto your HEAD (inside its own
           worktree — your tree is never touched) and retry; declining
-          leaves everything as it was
+          leaves everything as it was. Edits a failed, killed or orphaned
+          run left uncommitted are committed to its branch first, so the
+          merge carries everything `d` showed. A run with no changes is
+          refused. Untracked files in your tree do not block a merge
+          (git still refuses one that would overwrite them)
   x       discard: delete worktree + branch, forget the run (confirm first)
   i       iterate: prompt for feedback and spawn a follow-up run. Where the
           adapter supports resume (|hangar-adapters|), the follow-up

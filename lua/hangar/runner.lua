@@ -193,7 +193,7 @@ local function finish(run, code)
       run.status = "done"
       if worktree.is_dirty(run) then
         -- claude -p doesn't commit unless told; commit so the branch is mergeable
-        local ok, err = pcall(worktree.commit_all, run, ("hangar: %s"):format(run.prompt:sub(1, 72)))
+        local ok, err = pcall(worktree.commit_all, run, worktree.commit_subject(run))
         if not ok then
           run.status = "failed"
           run.error = "auto-commit failed: " .. tostring(err)
@@ -606,6 +606,42 @@ function M.discard(id)
   return true
 end
 
+---Why a run's branch cannot be merged (or rebased) right now; nil when it can.
+---@param run hangar.Run
+---@return string|nil reason
+local function unmergeable(run)
+  if run.status == "running" or run.status == "detached" then
+    return "run " .. run.id .. " is still running"
+  end
+  if run.status == "queued" then
+    return "run " .. run.id .. " has not started yet"
+  end
+  if run.status == "merged" then
+    return "run " .. run.id .. " is already merged"
+  end
+  if not run.branch then
+    -- an iteration took the branch over (see M.iterate)
+    return "run " .. run.id .. " has no branch to merge"
+  end
+end
+
+---Commit edits a run left uncommitted, so a merge carries everything review
+---showed. Only runs that end "done" get finish()'s auto-commit; failed, killed
+---and orphaned ones leave their work in the worktree.
+---@param run hangar.Run
+---@return boolean ok
+---@return string|nil err
+local function commit_pending(run)
+  if not (run.worktree and vim.uv.fs_stat(run.worktree)) or not worktree.is_dirty(run) then
+    return true
+  end
+  local ok, err = pcall(worktree.commit_all, run, worktree.commit_subject(run))
+  if not ok then
+    return false, "could not commit the run's uncommitted changes: " .. tostring(err)
+  end
+  return true
+end
+
 ---Merge a finished run, then clean up its worktree + branch.
 ---@return boolean ok
 ---@return string|nil err
@@ -616,11 +652,13 @@ function M.merge(id, strategy)
   if not run then
     return false, "no such run: " .. tostring(id)
   end
-  if run.status == "running" or run.status == "detached" then
-    return false, "run " .. id .. " is still running"
+  local why = unmergeable(run)
+  if why then
+    return false, why
   end
-  if run.status == "queued" then
-    return false, "run " .. id .. " has not started yet"
+  local cok, cerr = commit_pending(run)
+  if not cok then
+    return false, cerr
   end
   local ok, err, meta = worktree.merge(run, strategy or require("hangar").config.merge)
   if not ok then
@@ -642,6 +680,14 @@ function M.rebase_and_merge(id, strategy)
   local run = M.runs[id]
   if not run then
     return false, "no such run: " .. tostring(id)
+  end
+  local why = unmergeable(run)
+  if why then
+    return false, why
+  end
+  local cok, cerr = commit_pending(run) -- git refuses to rebase a dirty worktree
+  if not cok then
+    return false, cerr
   end
   local ok, err = worktree.rebase_onto_head(run)
   if not ok then
