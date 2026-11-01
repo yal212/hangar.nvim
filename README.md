@@ -62,7 +62,7 @@ This resolves to the [latest release](https://github.com/yal212/hangar.nvim/rele
 | `:Hangar clean` | delete worktrees/branches of all finished runs |
 | `:checkhealth hangar` | diagnose setup problems (git, agent CLIs, repo state) |
 
-Dashboard keys: `<CR>` transcript · `d` review/diff · `m` merge · `x` discard · `K` kill · `s` spawn · `r` refresh · `q` quit.
+Dashboard keys: `<CR>` transcript · `d` review/diff · `m` merge · `x` discard · `i` iterate with feedback · `K` kill · `R` resume an orphaned run · `s` spawn · `o` cycle sort · `f` hide merged · `r` refresh · `q` quit. `:h hangar-dashboard` has the details.
 
 With `--n`, the dashboard groups the attempts under one shared prompt line; compare their diffs with `d`, and merging one offers to discard its siblings.
 
