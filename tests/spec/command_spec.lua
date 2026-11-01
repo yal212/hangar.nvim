@@ -39,6 +39,33 @@ return function(harness)
   check(#hangar._validate({ default_permission = "wild" }) == 1, "setup: default_permission rejects other values")
   check(#hangar._validate({}) == 0, "setup: empty options are valid")
   check(#hangar._validate({ adaptor = "x", merge = 1 }) == 2, "setup: every problem is reported, not just the first")
+  check(#hangar._validate({ max_concurrent = 0 }) == 1, "setup: max_concurrent rejects 0")
+  check(#hangar._validate({ max_concurrent = -2 }) == 1, "setup: max_concurrent rejects a negative count")
+  check(#hangar._validate({ max_concurrent = 1.5 }) == 1, "setup: max_concurrent rejects a fraction")
+  check(
+    (hangar._validate({ max_concurrent = 0 })[1] or ""):find("whole number", 1, true) ~= nil,
+    "setup: a range error says what is accepted"
+  )
+
+  -- a rejected option is reported and ignored; the valid ones beside it apply
+  local orig_notify = vim.notify
+  local errors = 0
+  ---@diagnostic disable-next-line: duplicate-set-field
+  vim.notify = function(_, level)
+    if level == vim.log.levels.ERROR then
+      errors = errors + 1
+    end
+  end
+  ---@diagnostic disable-next-line: assign-type-mismatch -- deliberately invalid
+  hangar.setup({ merge = "rebase", max_concurrent = 0, adaptor = "codex", notify = false })
+  vim.notify = orig_notify
+  check(errors == 3, "setup: each rejected option is reported")
+  check(hangar.config.merge == "squash", "setup: an invalid value is not applied")
+  check(hangar.config.max_concurrent == nil, "setup: an out-of-range value is not applied")
+  ---@diagnostic disable-next-line: undefined-field
+  check(hangar.config.adaptor == nil, "setup: an unknown key is not merged")
+  check(hangar.config.notify == false, "setup: valid options beside rejected ones still apply")
+  hangar.config.notify = true
 
   -- every schema key must be a real config key, or validation would reject
   -- an option the plugin actually reads

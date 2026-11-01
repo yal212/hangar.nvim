@@ -93,6 +93,9 @@ require("hangar").setup({
 `claude_cmd` is a deprecated alias for `adapters.claude_code.cmd`; it still works but warns, and is
 removed in 0.3.0.
 
+`setup()` reports an unknown option or an invalid value by name and ignores it, so that option keeps
+its default.
+
 Lua API: `require("hangar").spawn(prompt, { permission_mode = "bypassPermissions", model = "haiku", adapter = "codex" })`.
 
 ### Statusline

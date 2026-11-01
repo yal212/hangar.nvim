@@ -8,6 +8,13 @@ names and the adapter contract are stable within a minor version; breaking chang
 
 ## [Unreleased]
 
+### Changed
+
+- `setup()` now ignores the options it reports as invalid, so they keep their previous
+  values. Before, it reported a bad value and then applied it anyway. `max_concurrent`
+  must also be a whole number >= 1: `0` used to be accepted silently, and then every
+  spawn queued forever.
+
 ### Fixed
 
 - `:Hangar clean` run before anything else had loaded the run registry (a fresh Neovim
