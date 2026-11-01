@@ -139,7 +139,25 @@ return function(harness)
     "transcript: unknown run id notifies"
   )
 
-  for _, b in ipairs({ buf, done_buf, fail_buf, iterated_buf }) do
+  -- the run is discarded (or cleaned) while its transcript is open
+  runner.runs["t5"] = { id = "t5", root = "/some/repo", status = "done", started = 1, prompt = "p", events = {} }
+  transcript.open("t5")
+  local gone_buf = vim.api.nvim_get_current_buf()
+  runner.runs["t5"] = nil
+  -- an erroring autocmd callback is reported as a message, not raised
+  vim.v.errmsg = ""
+  vim.api.nvim_exec_autocmds("User", { pattern = "HangarRunUpdate", data = { id = "t5" } })
+  check(vim.v.errmsg == "", "transcript: a discarded run does not error the update (" .. vim.v.errmsg .. ")")
+  local gone_lines = vim.api.nvim_buf_get_lines(gone_buf, 0, -1, false)
+  check(gone_lines[#gone_lines]:find("discarded", 1, true) ~= nil, "transcript: says the run was discarded")
+  check(gone_lines[1] == "prompt: p", "transcript: the discarded run's transcript stays readable")
+  local again_ok = pcall(vim.api.nvim_exec_autocmds, "User", { pattern = "HangarRunUpdate", data = { id = "t5" } })
+  check(
+    again_ok and #vim.api.nvim_buf_get_lines(gone_buf, 0, -1, false) == #gone_lines,
+    "transcript: stops following once the run is gone"
+  )
+
+  for _, b in ipairs({ buf, done_buf, fail_buf, iterated_buf, gone_buf }) do
     for _, win in ipairs(vim.fn.win_findbuf(b)) do
       vim.api.nvim_win_close(win, true)
     end

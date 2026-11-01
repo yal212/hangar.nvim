@@ -44,6 +44,9 @@ names and the adapter contract are stable within a minor version; breaking chang
   failed result could even be recorded as "done".
 - With `max_concurrent` set, runs queued within the same second (a `--n` fleet, or quick
   successive spawns) left the queue in arbitrary order rather than oldest-first.
+- Discarding a run while its transcript was open raised an error from the transcript's
+  update handler. The transcript now keeps what it showed and adds a note that the run was
+  discarded.
 - Rebase-and-retry no longer rebases the branch of a run that is still running, and merging
   a run whose branch an iteration took over now says so instead of failing inside git.
 

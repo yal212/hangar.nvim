@@ -130,7 +130,18 @@ function M.open(run_id)
         return true -- delete autocmd
       end
       if ev.data and ev.data.id == run_id then
-        render_all(buf, runner.get(run_id))
+        local current = runner.get(run_id)
+        if not current then
+          -- discarded while open: keep what is shown, say so, stop following
+          vim.bo[buf].modifiable = true
+          vim.api.nvim_buf_set_lines(buf, -1, -1, false, { "", ("run %s was discarded"):format(run_id) })
+          vim.bo[buf].modifiable = false
+          local last = vim.api.nvim_buf_line_count(buf) - 1
+          vim.api.nvim_buf_set_extmark(buf, ns, last, 0, { end_row = last + 1, hl_group = "HangarDim" })
+          open_bufs[run_id] = nil
+          return true -- delete autocmd
+        end
+        render_all(buf, current)
       end
     end,
   })
