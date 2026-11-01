@@ -5,6 +5,7 @@
 local worktree = require("hangar.worktree")
 local runner = require("hangar.runner")
 local icons = require("hangar.ui.icons")
+local utf8_prefix = require("hangar.util").utf8_prefix
 
 local M = {}
 
@@ -108,7 +109,7 @@ function M.render(state, refresh_files)
 
   local function clip(prompt, max)
     prompt = prompt:gsub("%s+", " ")
-    return prompt:sub(1, max) .. (#prompt > max and "…" or "")
+    return utf8_prefix(prompt, max) .. (#prompt > max and "…" or "")
   end
 
   -- display units: single runs, or one unit per best-of-n / iteration group

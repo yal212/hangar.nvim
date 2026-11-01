@@ -18,6 +18,10 @@ return function(harness)
   check(util.truncate(("x"):rep(10), 10) == ("x"):rep(10), "truncate: exactly at the cap is untouched")
   local over = util.truncate(("x"):rep(11), 10)
   check(#over == 10 and over:sub(-3) == "...", "truncate: over the cap is cut to the cap, ellipsis included")
+  check(
+    util.truncate("a" .. ("修"):rep(50), 60) == "a" .. ("修"):rep(18) .. "...",
+    "truncate: never splits a multibyte character"
+  )
 
   -- input_summary: first matching key wins, in SUMMARY_KEYS order
   check(util.input_summary({ file_path = "/a/b.lua" }) == "/a/b.lua", "input_summary: file_path")

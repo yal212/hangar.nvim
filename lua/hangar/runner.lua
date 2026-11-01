@@ -4,6 +4,7 @@
 ---UI layers subscribe via `User HangarRunUpdate` autocmds (data = { id }).
 local worktree = require("hangar.worktree")
 local store = require("hangar.store")
+local utf8_prefix = require("hangar.util").utf8_prefix
 
 local M = {}
 
@@ -178,7 +179,7 @@ local function notify_finish(run)
     msg = msg .. (" ($%.2f)"):format(run.cost)
   end
   if run.status == "failed" and run.error then
-    msg = msg .. ": " .. run.error:sub(1, 120)
+    msg = msg .. ": " .. utf8_prefix(run.error, 120)
   end
   vim.notify(msg, run.status == "done" and vim.log.levels.INFO or vim.log.levels.ERROR)
 end

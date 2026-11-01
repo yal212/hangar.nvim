@@ -1,4 +1,6 @@
 ---Shared helpers for adapter parsers.
+local utf8_prefix = require("hangar.util").utf8_prefix
+
 local M = {}
 
 ---Decode one line of a CLI's JSON stream. Returns nil for blank lines, invalid
@@ -17,14 +19,15 @@ function M.decode_line(line)
   return obj
 end
 
----Collapse whitespace and cap length for one-line transcript display.
+---Collapse whitespace and cap length (in bytes, ellipsis included) for
+---one-line transcript display. Never splits a multibyte character.
 ---@param s string
 ---@param max integer
 ---@return string
 function M.truncate(s, max)
   s = s:gsub("%s+", " ")
   if #s > max then
-    s = s:sub(1, max - 3) .. "..."
+    s = utf8_prefix(s, max - 3) .. "..."
   end
   return s
 end

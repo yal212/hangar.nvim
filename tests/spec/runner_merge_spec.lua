@@ -178,5 +178,9 @@ return function(harness)
         == "hangar: fix it Previous attempt feedback: more",
       "commit subject: the prompt is collapsed onto one line"
     )
+    check(
+      worktree.commit_subject({ prompt = "a" .. ("修"):rep(30) }) == "hangar: a" .. ("修"):rep(23),
+      "commit subject: a multibyte prompt is cut on a character boundary"
+    )
   end
 end

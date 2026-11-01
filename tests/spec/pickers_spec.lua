@@ -38,10 +38,17 @@ return function(harness)
   }
   runner.runs["p2"] = { id = "p2", root = root, status = "running", started = 2, events = {}, prompt = "other task" }
   runner.runs["p3"] = { id = "p3", root = "/some/other/repo", status = "done", started = 3, events = {}, prompt = "x" }
+  runner.runs["p4"] =
+    { id = "p4", root = root, status = "done", started = 0, events = {}, prompt = "a" .. ("修"):rep(30) }
 
   local entries, err = pickers.entries()
   check(entries and not err, "pickers: entries() succeeds inside a repo")
-  check(entries and #entries == 2, "pickers: entries() covers this repo only")
+  check(entries and #entries == 3, "pickers: entries() covers this repo only")
+  local cjk = entries and entries[#entries]
+  check(
+    cjk and cjk.display:find("a" .. ("修"):rep(19) .. "…", 1, true) ~= nil,
+    "pickers: a long multibyte prompt is clipped on a character boundary"
+  )
   local first = entries and entries[1]
   check(first and first.run.id == "p2", "pickers: entries() newest first")
   local done = entries and (entries[1].run.id == "p1" and entries[1] or entries[2])
@@ -50,7 +57,7 @@ return function(harness)
   check(done and done.display:find("$0.25", 1, true) ~= nil, "pickers: display carries cost")
   check(done and done.display:find("3 turns", 1, true) ~= nil, "pickers: display carries turns")
 
-  for _, id in ipairs({ "p1", "p2", "p3" }) do
+  for _, id in ipairs({ "p1", "p2", "p3", "p4" }) do
     runner.runs[id] = nil
   end
   vim.fn.chdir(prev)

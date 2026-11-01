@@ -29,7 +29,7 @@ function M.entries()
         icons.get(run.status).icon,
         run.id,
         run.status,
-        prompt:sub(1, 60) .. (#prompt > 60 and "…" or ""),
+        util.utf8_prefix(prompt, 60) .. (#prompt > 60 and "…" or ""),
         #stats > 0 and ("  (" .. table.concat(stats, ", ") .. ")") or ""
       ),
     }

@@ -47,6 +47,10 @@ names and the adapter contract are stable within a minor version; breaking chang
 - Discarding a run while its transcript was open raised an error from the transcript's
   update handler. The transcript now keeps what it showed and adds a note that the run was
   discarded.
+- Long prompts and tool output were cut at a byte count, which could split a multibyte
+  character (CJK text, emoji, accented letters) and show `<e4><bf>`-style garbage in the
+  dashboard, the pickers, transcript tool lines and notifications, or put invalid UTF-8 in
+  auto-commit messages. Text is now cut only between characters.
 - Rebase-and-retry no longer rebases the branch of a run that is still running, and merging
   a run whose branch an iteration took over now says so instead of failing inside git.
 

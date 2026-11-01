@@ -5,6 +5,8 @@
 ---(claude, opencode) resolve their workspace upward from cwd, and a
 ---worktree nested inside the repo lets an agent using workspace-rooted
 ---absolute paths write straight into the user's main tree.
+local utf8_prefix = require("hangar.util").utf8_prefix
+
 local M = {}
 
 ---Run a git command, return { code, stdout, stderr }.
@@ -90,7 +92,7 @@ end
 ---@return string
 function M.commit_subject(run)
   local prompt = vim.trim(((run.prompt or run.branch or ""):gsub("%s+", " ")))
-  return "hangar: " .. prompt:sub(1, 72)
+  return "hangar: " .. utf8_prefix(prompt, 72)
 end
 
 ---Commit everything in the run's worktree.
