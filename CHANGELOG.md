@@ -64,6 +64,9 @@ names and the adapter contract are stable within a minor version; breaking chang
   two, and merging one run offered to discard the other fleet's attempts. Iteration
   lineages had the same problem once a run id was reused. Group ids are now unique in the
   registry.
+- `m` in the review float merged directly. When the merge conflicted it reported the error
+  instead of offering rebase-and-retry, and after merging a best-of-n attempt it never
+  offered to discard the siblings. It now runs the same merge flow as the dashboard's `m`.
 - Rebase-and-retry no longer rebases the branch of a run that is still running, and merging
   a run whose branch an iteration took over now says so instead of failing inside git.
 
