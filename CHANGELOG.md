@@ -32,6 +32,9 @@ names and the adapter contract are stable within a minor version; breaking chang
   worktree leaked. The spawn now fails with "could not start <cli>" and leaves nothing
   behind; a queued run that hits this when its turn comes is marked failed, and a failed
   resume or iterate leaves the original run as it was.
+- The last line of an agent's output stream was dropped when it had no trailing newline.
+  That line is usually the final result, so the run lost its cost and turn count, and a
+  failed result could even be recorded as "done".
 - With `max_concurrent` set, runs queued within the same second (a `--n` fleet, or quick
   successive spawns) left the queue in arbitrary order rather than oldest-first.
 - Rebase-and-retry no longer rebases the branch of a run that is still running, and merging

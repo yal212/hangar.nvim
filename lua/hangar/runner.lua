@@ -263,18 +263,25 @@ local function start_job(run, adapter, cmd)
     cwd = run.worktree,
     text = true,
     stdout = function(_, data)
-      if not data then
-        return
-      end
-      carry = carry .. data
-      local batch = {}
-      while true do
-        local nl = carry:find("\n", 1, true)
-        if not nl then
-          break
+      local lines = {}
+      if data then
+        carry = carry .. data
+        while true do
+          local nl = carry:find("\n", 1, true)
+          if not nl then
+            break
+          end
+          lines[#lines + 1] = carry:sub(1, nl - 1)
+          carry = carry:sub(nl + 1)
         end
-        local line = carry:sub(1, nl - 1)
-        carry = carry:sub(nl + 1)
+      elseif carry ~= "" then
+        -- EOF: a last line with no trailing newline is still a line. This is
+        -- scheduled ahead of finish(), which vim.system only calls once the
+        -- pipes have closed.
+        lines[1], carry = carry, ""
+      end
+      local batch = {}
+      for _, line in ipairs(lines) do
         local ev = adapter.parse_line(line)
         if ev then
           batch[#batch + 1] = ev
