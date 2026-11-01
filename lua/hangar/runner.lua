@@ -185,6 +185,23 @@ end
 
 local promote_queued -- forward declaration; defined after start_run below
 
+---Spawn order of the runs created this session. `started` has one-second
+---resolution, so same-second spawns (a --n fleet, quick successive spawns)
+---need this to leave the queue oldest-first. Not persisted: a queued run never
+---survives a restart (see store.load).
+local spawn_seq, last_seq = {}, 0
+
+---Queue order: earlier `started` first, spawn order within the same second.
+---@param a hangar.Run
+---@param b hangar.Run
+---@return boolean
+local function queued_before(a, b)
+  if a.started ~= b.started then
+    return a.started < b.started
+  end
+  return (spawn_seq[a.id] or 0) < (spawn_seq[b.id] or 0)
+end
+
 local function finish(run, code)
   run.exit_code = code
   run.finished = os.time()
@@ -341,7 +358,7 @@ promote_queued = function()
     end
     local next_run
     for _, run in pairs(M.runs) do
-      if run.status == "queued" and (not next_run or run.started < next_run.started) then
+      if run.status == "queued" and (not next_run or queued_before(run, next_run)) then
         next_run = run
       end
     end
@@ -402,6 +419,8 @@ function M.spawn(prompt, opts)
     attempt = opts.attempt,
   }
   M.runs[id] = run
+  last_seq = last_seq + 1
+  spawn_seq[id] = last_seq
 
   if not (config.max_concurrent and count_running() >= config.max_concurrent) then
     local ok, serr = start_run(run)

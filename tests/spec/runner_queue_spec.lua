@@ -47,6 +47,40 @@ return function(harness)
     end, 50)
     runner.discard(r1.id)
     runner.discard(r2.id)
+
+    -- `started` has one-second resolution: runs queued within the same second
+    -- must still leave the queue in spawn order
+    local blocker = assert(runner.spawn("blocker", vim.deepcopy(opts)))
+    local fleet = {}
+    for i = 1, 5 do
+      fleet[i] = assert(runner.spawn("same second " .. i, vim.deepcopy(opts)))
+    end
+    for i = 2, 5 do
+      fleet[i].started = fleet[1].started -- force the tie even across a second boundary
+    end
+    local order_ok = true
+    local current = blocker
+    for i = 1, 5 do
+      runner.kill(current.id)
+      vim.wait(10000, function()
+        return fleet[i].status ~= "queued"
+      end, 50)
+      for j = i + 1, 5 do
+        order_ok = order_ok and fleet[j].status == "queued"
+      end
+      order_ok = order_ok and fleet[i].status == "running"
+      current = fleet[i]
+    end
+    check(order_ok, "queue: same-second spawns start oldest-first")
+    runner.kill(current.id)
+    vim.wait(10000, function()
+      return current.exit_code ~= nil
+    end, 50)
+    runner.discard(blocker.id)
+    for _, r in ipairs(fleet) do
+      runner.discard(r.id)
+    end
+
     hangar.config.max_concurrent = nil
     vim.fn.chdir(prev)
   end

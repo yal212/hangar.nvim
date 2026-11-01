@@ -32,6 +32,8 @@ names and the adapter contract are stable within a minor version; breaking chang
   worktree leaked. The spawn now fails with "could not start <cli>" and leaves nothing
   behind; a queued run that hits this when its turn comes is marked failed, and a failed
   resume or iterate leaves the original run as it was.
+- With `max_concurrent` set, runs queued within the same second (a `--n` fleet, or quick
+  successive spawns) left the queue in arbitrary order rather than oldest-first.
 - Rebase-and-retry no longer rebases the branch of a run that is still running, and merging
   a run whose branch an iteration took over now says so instead of failing inside git.
 

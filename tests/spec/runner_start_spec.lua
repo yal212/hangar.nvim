@@ -58,7 +58,6 @@ return function(harness)
     local queued = assert(runner.spawn("q", { permission_mode = "bypassPermissions", adapter = "missing" }))
     local after = assert(runner.spawn("after", { permission_mode = "bypassPermissions", adapter = "fake" }))
     check(queued.status == "queued" and after.status == "queued", "start: both runs queue behind the blocker")
-    queued.started = queued.started - 1 -- same-second spawns: pin the queue order
     runner.kill(blocker.id)
     vim.wait(10000, function()
       return after.status ~= "queued"
