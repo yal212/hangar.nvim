@@ -231,15 +231,18 @@ end
 ---@field attempt integer|nil attempt index within the group
 
 ---Launch the agent process for a run whose worktree already exists, wiring
----stdout through the adapter's parser into the run's transcript.
+---stdout through the adapter's parser into the run's transcript. Leaves the
+---run untouched when the process cannot be started (e.g. the CLI is not
+---installed): marking it "running" first would strand a record no job backs,
+---which can be neither killed nor discarded.
 ---@param run hangar.Run
 ---@param adapter table
 ---@param cmd string[]
+---@return boolean ok
+---@return string|nil err
 local function start_job(run, adapter, cmd)
-  run.status = "running"
-  run.started = os.time()
   local carry = "" -- partial stream-json line between stdout chunks
-  local sysobj = vim.system(cmd, {
+  local started, sysobj = pcall(vim.system, cmd, {
     cwd = run.worktree,
     text = true,
     stdout = function(_, data)
@@ -279,8 +282,14 @@ local function start_job(run, adapter, cmd)
       finish(run, res.code)
     end)
   end)
+  if not started then
+    return false, ("could not start %s: %s (see :checkhealth hangar)"):format(tostring(cmd[1]), tostring(sysobj))
+  end
+  run.status = "running"
+  run.started = os.time()
   jobs[run.id] = sysobj
   run.pid = sysobj.pid
+  return true
 end
 
 ---Executable override for an adapter from config (incl. the deprecated
@@ -314,7 +323,12 @@ local function start_run(run)
     cmd = cmd_override_for(run.adapter),
     cwd = wt.path,
   })
-  start_job(run, adapter, cmd)
+  local started, err = start_job(run, adapter, cmd)
+  if not started then
+    worktree.remove(run)
+    run.worktree, run.branch, run.base = nil, nil, nil
+    return false, err
+  end
   return true
 end
 
@@ -472,8 +486,11 @@ function M.resume(id)
     cmd = cmd_override_for(run.adapter),
     cwd = run.worktree,
   })
+  local started, serr = start_job(run, adapter, cmd) -- resumes bypass max_concurrent by design
+  if not started then
+    return false, serr
+  end
   run.finished, run.exit_code, run.result_is_error, run.error = nil, nil, nil, nil
-  start_job(run, adapter, cmd) -- resumes bypass max_concurrent by design
   M.save()
   notify_update(id)
   return true
@@ -583,7 +600,12 @@ function M.iterate(id, feedback)
     cmd = cmd_override_for(new_run.adapter),
     cwd = new_run.worktree,
   })
-  start_job(new_run, adapter, cmd)
+  local started, serr = start_job(new_run, adapter, cmd)
+  if not started then
+    M.runs[new_id] = nil
+    run.worktree, run.branch = new_run.worktree, new_run.branch
+    return nil, serr
+  end
   M.save()
   notify_update(new_id)
   return new_run

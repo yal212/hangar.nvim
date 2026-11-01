@@ -26,6 +26,12 @@ names and the adapter contract are stable within a minor version; breaking chang
 - An untracked file anywhere in your working tree blocked every merge as "dirty". Only
   tracked changes count now; git still refuses a merge that would overwrite an untracked
   file.
+- Spawning with an agent CLI that is not installed raised a Lua error and left the run stuck
+  as "running" with no process behind it: `K` said it was not running, `x` said it was
+  still running, it held a `max_concurrent` slot for the rest of the session, and its
+  worktree leaked. The spawn now fails with "could not start <cli>" and leaves nothing
+  behind; a queued run that hits this when its turn comes is marked failed, and a failed
+  resume or iterate leaves the original run as it was.
 - Rebase-and-retry no longer rebases the branch of a run that is still running, and merging
   a run whose branch an iteration took over now says so instead of failing inside git.
 
